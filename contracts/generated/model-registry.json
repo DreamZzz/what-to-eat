@@ -1,0 +1,1002 @@
+{
+  "sourceOfTruth": {
+    "entities": "backend/src/main/java/**/model/*.java",
+    "dtoClasses": "backend/src/main/java/**/dto/*.java"
+  },
+  "outputs": {
+    "frontendModels": "frontend/src/shared/models/generatedContracts.js",
+    "swiftCodable": "frontend/ios/frontend/Generated/APIContractModels.swift"
+  },
+  "entityContracts": [
+    {
+      "name": "User",
+      "entity": "backend/src/main/java/com/quickstart/template/contexts/account/domain/User.java",
+      "dto": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/UserDTO.java",
+      "entityHash": "070b337bb2fad4157ecc5bf584479877ad204851213a8d9dfe0f12011e04dc87",
+      "dtoHash": "3893108b491f47861ff33e3883fa853adb32e5d8af14d6aa6b4e73cb10f0f810",
+      "expectedSharedFields": [
+        {
+          "name": "id",
+          "javaType": "Long"
+        },
+        {
+          "name": "username",
+          "javaType": "String"
+        },
+        {
+          "name": "displayName",
+          "javaType": "String"
+        },
+        {
+          "name": "email",
+          "javaType": "String"
+        },
+        {
+          "name": "phone",
+          "javaType": "String"
+        },
+        {
+          "name": "avatarUrl",
+          "javaType": "String"
+        },
+        {
+          "name": "bio",
+          "javaType": "String"
+        },
+        {
+          "name": "gender",
+          "javaType": "String"
+        },
+        {
+          "name": "birthday",
+          "javaType": "LocalDate"
+        },
+        {
+          "name": "region",
+          "javaType": "String"
+        },
+        {
+          "name": "createdAt",
+          "javaType": "LocalDateTime"
+        },
+        {
+          "name": "updatedAt",
+          "javaType": "LocalDateTime"
+        }
+      ],
+      "dtoOnlyFields": [],
+      "problems": []
+    },
+    {
+      "name": "Post",
+      "entity": "backend/src/main/java/com/quickstart/template/contexts/community/domain/Post.java",
+      "dto": "backend/src/main/java/com/quickstart/template/contexts/community/api/dto/PostDTO.java",
+      "entityHash": "80045be8db390651ef293d3574d22a9f7d1b275c1c22646a74e2dc0e4d07458e",
+      "dtoHash": "0a4a46de3d116a3382e1d747d0c9ac1fe0f12f10807ed2d0be93c0fff8a53ec1",
+      "expectedSharedFields": [
+        {
+          "name": "id",
+          "javaType": "Long"
+        },
+        {
+          "name": "content",
+          "javaType": "String"
+        },
+        {
+          "name": "imageUrls",
+          "javaType": "List<String>"
+        },
+        {
+          "name": "locationName",
+          "javaType": "String"
+        },
+        {
+          "name": "locationAddress",
+          "javaType": "String"
+        },
+        {
+          "name": "latitude",
+          "javaType": "Double"
+        },
+        {
+          "name": "longitude",
+          "javaType": "Double"
+        },
+        {
+          "name": "gisPoint",
+          "javaType": "String"
+        },
+        {
+          "name": "createdAt",
+          "javaType": "LocalDateTime"
+        },
+        {
+          "name": "updatedAt",
+          "javaType": "LocalDateTime"
+        },
+        {
+          "name": "likeCount",
+          "javaType": "Integer"
+        },
+        {
+          "name": "commentCount",
+          "javaType": "Integer"
+        }
+      ],
+      "dtoOnlyFields": [
+        "userId",
+        "username",
+        "userAvatarUrl"
+      ],
+      "problems": []
+    },
+    {
+      "name": "Comment",
+      "entity": "backend/src/main/java/com/quickstart/template/contexts/community/domain/Comment.java",
+      "dto": "backend/src/main/java/com/quickstart/template/contexts/community/api/dto/CommentDTO.java",
+      "entityHash": "e9e52da280fa9435b8d02f66729dc404a346c25190a1e4656d2ed69a2f80c1e8",
+      "dtoHash": "128aabfbe2c36bf1cae90803ab2e81355cc51f9137de25154a7b1d3c891c04c5",
+      "expectedSharedFields": [
+        {
+          "name": "id",
+          "javaType": "Long"
+        },
+        {
+          "name": "content",
+          "javaType": "String"
+        },
+        {
+          "name": "createdAt",
+          "javaType": "LocalDateTime"
+        },
+        {
+          "name": "updatedAt",
+          "javaType": "LocalDateTime"
+        },
+        {
+          "name": "likeCount",
+          "javaType": "Integer"
+        }
+      ],
+      "dtoOnlyFields": [
+        "userId",
+        "username",
+        "userAvatarUrl",
+        "postId"
+      ],
+      "problems": []
+    }
+  ],
+  "dtoModels": [
+    {
+      "className": "AuthErrorResponse",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/AuthErrorResponse.java",
+      "sourceHash": "bdda970917e1862b250d3678b351fd6441dbc0daa34b888999b8db98bc4680c7",
+      "fields": [
+        {
+          "name": "code",
+          "javaType": "String"
+        },
+        {
+          "name": "message",
+          "javaType": "String"
+        },
+        {
+          "name": "captchaRequired",
+          "javaType": "boolean"
+        },
+        {
+          "name": "remainingAttempts",
+          "javaType": "Integer"
+        }
+      ]
+    },
+    {
+      "className": "AuthRequest",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/AuthRequest.java",
+      "sourceHash": "eb505118e1906169101fddfb2e8fa8153d560bf8495c2588b523aeb4bc56763c",
+      "fields": [
+        {
+          "name": "username",
+          "javaType": "String"
+        },
+        {
+          "name": "email",
+          "javaType": "String"
+        },
+        {
+          "name": "password",
+          "javaType": "String"
+        },
+        {
+          "name": "phone",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "AuthResponse",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/AuthResponse.java",
+      "sourceHash": "e2e937bfc05f61068e949546fea3d57baef22823c1e83af372b3ab068aafbae9",
+      "fields": [
+        {
+          "name": "token",
+          "javaType": "String"
+        },
+        {
+          "name": "type",
+          "javaType": "String"
+        },
+        {
+          "name": "id",
+          "javaType": "Long"
+        },
+        {
+          "name": "username",
+          "javaType": "String"
+        },
+        {
+          "name": "displayName",
+          "javaType": "String"
+        },
+        {
+          "name": "email",
+          "javaType": "String"
+        },
+        {
+          "name": "phone",
+          "javaType": "String"
+        },
+        {
+          "name": "avatarUrl",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "CaptchaResponse",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/CaptchaResponse.java",
+      "sourceHash": "371a9294828a164573b6151faba1f3d15d18af4e18436ee4fab39f223c28f6b8",
+      "fields": [
+        {
+          "name": "captchaId",
+          "javaType": "String"
+        },
+        {
+          "name": "imageBase64",
+          "javaType": "String"
+        },
+        {
+          "name": "expiresInSeconds",
+          "javaType": "long"
+        }
+      ]
+    },
+    {
+      "className": "ForgotPasswordRequest",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/ForgotPasswordRequest.java",
+      "sourceHash": "1617146a5b8a0949f831858815397dab5634f51b43989cdd12812813892d365f",
+      "fields": [
+        {
+          "name": "email",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "LoginRequest",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/LoginRequest.java",
+      "sourceHash": "79bf8dfc8d259703913ce2952f64b79d16a278ba8aea15a7810eeee44ea36a8a",
+      "fields": [
+        {
+          "name": "username",
+          "javaType": "String"
+        },
+        {
+          "name": "password",
+          "javaType": "String"
+        },
+        {
+          "name": "captchaId",
+          "javaType": "String"
+        },
+        {
+          "name": "captchaCode",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "ResetPasswordRequest",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/ResetPasswordRequest.java",
+      "sourceHash": "fedbb8b595be559017415423a86f7ef781cbd052529b2aebac8ca02849e9e52b",
+      "fields": [
+        {
+          "name": "email",
+          "javaType": "String"
+        },
+        {
+          "name": "code",
+          "javaType": "String"
+        },
+        {
+          "name": "newPassword",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "SmsCodeRequest",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/SmsCodeRequest.java",
+      "sourceHash": "23522d3cb7000565c73a6bbec731a3ca8d2c86c85c08c645bdf5ee56ed743f03",
+      "fields": [
+        {
+          "name": "phone",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "SmsLoginRequest",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/SmsLoginRequest.java",
+      "sourceHash": "e85c88298b37b5953da8ce6a765aa5e4e0b37ae675c9e9ad6c73ebbb56ea46e3",
+      "fields": [
+        {
+          "name": "phone",
+          "javaType": "String"
+        },
+        {
+          "name": "code",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "UserDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/UserDTO.java",
+      "sourceHash": "3893108b491f47861ff33e3883fa853adb32e5d8af14d6aa6b4e73cb10f0f810",
+      "fields": [
+        {
+          "name": "id",
+          "javaType": "Long"
+        },
+        {
+          "name": "username",
+          "javaType": "String"
+        },
+        {
+          "name": "displayName",
+          "javaType": "String"
+        },
+        {
+          "name": "email",
+          "javaType": "String"
+        },
+        {
+          "name": "phone",
+          "javaType": "String"
+        },
+        {
+          "name": "avatarUrl",
+          "javaType": "String"
+        },
+        {
+          "name": "bio",
+          "javaType": "String"
+        },
+        {
+          "name": "gender",
+          "javaType": "String"
+        },
+        {
+          "name": "birthday",
+          "javaType": "LocalDate"
+        },
+        {
+          "name": "region",
+          "javaType": "String"
+        },
+        {
+          "name": "createdAt",
+          "javaType": "LocalDateTime"
+        },
+        {
+          "name": "updatedAt",
+          "javaType": "LocalDateTime"
+        }
+      ]
+    },
+    {
+      "className": "CommentDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/community/api/dto/CommentDTO.java",
+      "sourceHash": "128aabfbe2c36bf1cae90803ab2e81355cc51f9137de25154a7b1d3c891c04c5",
+      "fields": [
+        {
+          "name": "id",
+          "javaType": "Long"
+        },
+        {
+          "name": "content",
+          "javaType": "String"
+        },
+        {
+          "name": "userId",
+          "javaType": "Long"
+        },
+        {
+          "name": "username",
+          "javaType": "String"
+        },
+        {
+          "name": "userAvatarUrl",
+          "javaType": "String"
+        },
+        {
+          "name": "postId",
+          "javaType": "Long"
+        },
+        {
+          "name": "createdAt",
+          "javaType": "LocalDateTime"
+        },
+        {
+          "name": "updatedAt",
+          "javaType": "LocalDateTime"
+        },
+        {
+          "name": "likeCount",
+          "javaType": "Integer"
+        }
+      ]
+    },
+    {
+      "className": "PostCollectionResponse",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/community/api/dto/PostCollectionResponse.java",
+      "sourceHash": "87564beea6f7d8cf728b9d0ae88c1aed87a4e3286d86f3f6ca58630b0119d2ab",
+      "fields": [
+        {
+          "name": "items",
+          "javaType": "List<PostDTO>"
+        },
+        {
+          "name": "pagination",
+          "javaType": "PaginationMeta"
+        },
+        {
+          "name": "retrieval",
+          "javaType": "RetrievalMeta"
+        }
+      ]
+    },
+    {
+      "className": "PostDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/community/api/dto/PostDTO.java",
+      "sourceHash": "0a4a46de3d116a3382e1d747d0c9ac1fe0f12f10807ed2d0be93c0fff8a53ec1",
+      "fields": [
+        {
+          "name": "id",
+          "javaType": "Long"
+        },
+        {
+          "name": "content",
+          "javaType": "String"
+        },
+        {
+          "name": "imageUrls",
+          "javaType": "List<String>"
+        },
+        {
+          "name": "userId",
+          "javaType": "Long"
+        },
+        {
+          "name": "username",
+          "javaType": "String"
+        },
+        {
+          "name": "userAvatarUrl",
+          "javaType": "String"
+        },
+        {
+          "name": "locationName",
+          "javaType": "String"
+        },
+        {
+          "name": "locationAddress",
+          "javaType": "String"
+        },
+        {
+          "name": "latitude",
+          "javaType": "Double"
+        },
+        {
+          "name": "longitude",
+          "javaType": "Double"
+        },
+        {
+          "name": "gisPoint",
+          "javaType": "String"
+        },
+        {
+          "name": "createdAt",
+          "javaType": "LocalDateTime"
+        },
+        {
+          "name": "updatedAt",
+          "javaType": "LocalDateTime"
+        },
+        {
+          "name": "likeCount",
+          "javaType": "Integer"
+        },
+        {
+          "name": "commentCount",
+          "javaType": "Integer"
+        }
+      ]
+    },
+    {
+      "className": "LocationSuggestionDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/location/api/dto/LocationSuggestionDTO.java",
+      "sourceHash": "52278a47de6da74355689013f8b79e36f1eed3bf09143c386a03589ab9416595",
+      "fields": [
+        {
+          "name": "name",
+          "javaType": "String"
+        },
+        {
+          "name": "address",
+          "javaType": "String"
+        },
+        {
+          "name": "latitude",
+          "javaType": "Double"
+        },
+        {
+          "name": "longitude",
+          "javaType": "Double"
+        },
+        {
+          "name": "district",
+          "javaType": "String"
+        },
+        {
+          "name": "city",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "MealCatalogItemDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/MealCatalogItemDTO.java",
+      "sourceHash": "794cee1fc7c5d32e6d808ed50c0c0a1835c61fe8ad7225bb132cf5e91361c66a",
+      "fields": [
+        {
+          "name": "id",
+          "javaType": "Long"
+        },
+        {
+          "name": "code",
+          "javaType": "String"
+        },
+        {
+          "name": "slug",
+          "javaType": "String"
+        },
+        {
+          "name": "name",
+          "javaType": "String"
+        },
+        {
+          "name": "category",
+          "javaType": "String"
+        },
+        {
+          "name": "subcategory",
+          "javaType": "String"
+        },
+        {
+          "name": "cookingMethod",
+          "javaType": "String"
+        },
+        {
+          "name": "rawFlavorText",
+          "javaType": "String"
+        },
+        {
+          "name": "flavorTags",
+          "javaType": "List<String>"
+        },
+        {
+          "name": "featureTags",
+          "javaType": "List<String>"
+        },
+        {
+          "name": "ingredientTags",
+          "javaType": "List<String>"
+        },
+        {
+          "name": "sourceIndex",
+          "javaType": "Integer"
+        }
+      ]
+    },
+    {
+      "className": "MealCatalogResponseDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/MealCatalogResponseDTO.java",
+      "sourceHash": "453bd66f481af6a78063d3bf70d5e4de292cc9cb5596039245abd9549b5d3132",
+      "fields": [
+        {
+          "name": "datasetVersion",
+          "javaType": "String"
+        },
+        {
+          "name": "total",
+          "javaType": "Integer"
+        },
+        {
+          "name": "items",
+          "javaType": "List<MealCatalogItemDTO>"
+        }
+      ]
+    },
+    {
+      "className": "MealRecipeCollectionResponseDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/MealRecipeCollectionResponseDTO.java",
+      "sourceHash": "043d645f7e188421a54b551551cb60d6ec45897577fb6df999e0d8ccbdccbd1e",
+      "fields": [
+        {
+          "name": "items",
+          "javaType": "List<RecipeDTO>"
+        },
+        {
+          "name": "pagination",
+          "javaType": "PaginationMeta"
+        },
+        {
+          "name": "retrieval",
+          "javaType": "RetrievalMeta"
+        }
+      ]
+    },
+    {
+      "className": "MealRecommendationFormDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/MealRecommendationFormDTO.java",
+      "sourceHash": "db46580def309795f866e2ddb1a8efb58a26ea04424255bb5862c4b65e49da4f",
+      "fields": [
+        {
+          "name": "sourceMode",
+          "javaType": "String"
+        },
+        {
+          "name": "catalogItemId",
+          "javaType": "Long"
+        },
+        {
+          "name": "dishCount",
+          "javaType": "Integer"
+        },
+        {
+          "name": "totalCalories",
+          "javaType": "Integer"
+        },
+        {
+          "name": "staple",
+          "javaType": "String"
+        },
+        {
+          "name": "flavor",
+          "javaType": "String"
+        },
+        {
+          "name": "locale",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "MealRecommendationRequestDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/MealRecommendationRequestDTO.java",
+      "sourceHash": "afadd302f02679e4e719f0b0855b847f8083c9cb05d291093b3c4d34a07007c5",
+      "fields": [
+        {
+          "name": "sourceText",
+          "javaType": "String"
+        },
+        {
+          "name": "sourceMode",
+          "javaType": "String"
+        },
+        {
+          "name": "catalogItemId",
+          "javaType": "Long"
+        },
+        {
+          "name": "dishCount",
+          "javaType": "Integer"
+        },
+        {
+          "name": "totalCalories",
+          "javaType": "Integer"
+        },
+        {
+          "name": "staple",
+          "javaType": "String"
+        },
+        {
+          "name": "flavor",
+          "javaType": "String"
+        },
+        {
+          "name": "locale",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "MealRecommendationResponseDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/MealRecommendationResponseDTO.java",
+      "sourceHash": "a365dd1b6a7373ed9ede61dca109ab15110a825d948ded5f56c1c3c1d5151682",
+      "fields": [
+        {
+          "name": "requestId",
+          "javaType": "String"
+        },
+        {
+          "name": "sourceText",
+          "javaType": "String"
+        },
+        {
+          "name": "form",
+          "javaType": "MealRecommendationFormDTO"
+        },
+        {
+          "name": "provider",
+          "javaType": "String"
+        },
+        {
+          "name": "items",
+          "javaType": "List<RecipeDTO>"
+        },
+        {
+          "name": "emptyState",
+          "javaType": "Boolean"
+        }
+      ]
+    },
+    {
+      "className": "RecipeDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/RecipeDTO.java",
+      "sourceHash": "e957dc1ab0d0e9c2d2ed8ab478cc49d99e6978a43fa9fcf9976949204fab13f7",
+      "fields": [
+        {
+          "name": "id",
+          "javaType": "Long"
+        },
+        {
+          "name": "catalogItemId",
+          "javaType": "Long"
+        },
+        {
+          "name": "title",
+          "javaType": "String"
+        },
+        {
+          "name": "summary",
+          "javaType": "String"
+        },
+        {
+          "name": "estimatedCalories",
+          "javaType": "Integer"
+        },
+        {
+          "name": "ingredients",
+          "javaType": "List<RecipeIngredientDTO>"
+        },
+        {
+          "name": "seasonings",
+          "javaType": "List<RecipeIngredientDTO>"
+        },
+        {
+          "name": "steps",
+          "javaType": "List<RecipeStepDTO>"
+        },
+        {
+          "name": "imageUrl",
+          "javaType": "String"
+        },
+        {
+          "name": "imageStatus",
+          "javaType": "String"
+        },
+        {
+          "name": "preference",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "RecipeIngredientDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/RecipeIngredientDTO.java",
+      "sourceHash": "99f0ffe75ece6a214725cfea3b20db40062e13322eb2fa83158ffd30a5745b1f",
+      "fields": [
+        {
+          "name": "name",
+          "javaType": "String"
+        },
+        {
+          "name": "amount",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "RecipePreferenceRequestDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/RecipePreferenceRequestDTO.java",
+      "sourceHash": "e9dad9604988651787ee1bfd5b732fe0e60f13cc8afbfea78da221fc2b0d3cc2",
+      "fields": [
+        {
+          "name": "preference",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "RecipePreferenceResponseDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/RecipePreferenceResponseDTO.java",
+      "sourceHash": "adb4b0014d8318f89f539dba7b690fd8f0dd45d8126410b3ac4857dca3adcb4a",
+      "fields": [
+        {
+          "name": "recipeId",
+          "javaType": "Long"
+        },
+        {
+          "name": "preference",
+          "javaType": "String"
+        },
+        {
+          "name": "updatedAt",
+          "javaType": "LocalDateTime"
+        }
+      ]
+    },
+    {
+      "className": "RecipeStepDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/RecipeStepDTO.java",
+      "sourceHash": "a67be5a5ddf8fe9987ca3494eedc48e324cfec15ce2dc172765060db9ea43812",
+      "fields": [
+        {
+          "name": "index",
+          "javaType": "Integer"
+        },
+        {
+          "name": "content",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "VoiceTranscriptionResponseDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/VoiceTranscriptionResponseDTO.java",
+      "sourceHash": "5142513ca230ae10cd997eb8fc99302b0c740c47075f1e98c5c70721968d915c",
+      "fields": [
+        {
+          "name": "text",
+          "javaType": "String"
+        },
+        {
+          "name": "provider",
+          "javaType": "String"
+        },
+        {
+          "name": "durationMs",
+          "javaType": "Long"
+        },
+        {
+          "name": "emptyResult",
+          "javaType": "Boolean"
+        }
+      ]
+    },
+    {
+      "className": "FileUploadResponse",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/media/api/dto/FileUploadResponse.java",
+      "sourceHash": "7a54069201ee3bca3c0bc634ffaaead880b5452216acfcdf094650b7c114c584",
+      "fields": [
+        {
+          "name": "fileName",
+          "javaType": "String"
+        },
+        {
+          "name": "fileUrl",
+          "javaType": "String"
+        },
+        {
+          "name": "fileType",
+          "javaType": "String"
+        },
+        {
+          "name": "size",
+          "javaType": "long"
+        }
+      ]
+    },
+    {
+      "className": "MessageResponse",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/shared/dto/MessageResponse.java",
+      "sourceHash": "e608e8fcfd598fe692aa2f4e1bb48b28830fb5214c3a507eed261ac751879050",
+      "fields": [
+        {
+          "name": "message",
+          "javaType": "String"
+        },
+        {
+          "name": "service",
+          "javaType": "String"
+        },
+        {
+          "name": "provider",
+          "javaType": "String"
+        },
+        {
+          "name": "setupRequired",
+          "javaType": "Boolean"
+        }
+      ]
+    },
+    {
+      "className": "PaginationMeta",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/shared/dto/PaginationMeta.java",
+      "sourceHash": "5126fe918ffe0e2dc59cc4947f825f9edb30fe8c33a6ceb616f18c54aecc4fe5",
+      "fields": [
+        {
+          "name": "page",
+          "javaType": "int"
+        },
+        {
+          "name": "size",
+          "javaType": "int"
+        },
+        {
+          "name": "totalItems",
+          "javaType": "long"
+        },
+        {
+          "name": "totalPages",
+          "javaType": "int"
+        },
+        {
+          "name": "hasNext",
+          "javaType": "boolean"
+        },
+        {
+          "name": "hasPrevious",
+          "javaType": "boolean"
+        }
+      ]
+    },
+    {
+      "className": "RetrievalMeta",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/shared/dto/RetrievalMeta.java",
+      "sourceHash": "298c675ea402128ab1cdb299d82295e1ee29fe9cc404a33fea605e05ff8bb226",
+      "fields": [
+        {
+          "name": "scene",
+          "javaType": "String"
+        },
+        {
+          "name": "keyword",
+          "javaType": "String"
+        },
+        {
+          "name": "sortStrategy",
+          "javaType": "String"
+        },
+        {
+          "name": "provider",
+          "javaType": "String"
+        }
+      ]
+    }
+  ]
+}

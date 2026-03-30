@@ -1,0 +1,123 @@
+# Resolve react_native_pods.rb with node to allow for hoisting
+require Pod::Executable.execute_command('node', ['-p',
+  'require.resolve(
+    "react-native/scripts/react_native_pods.rb",
+    {paths: [process.argv[1]]},
+  )', __dir__]).strip
+require 'shellwords'
+
+platform :ios, min_ios_version_supported
+prepare_react_native_project!
+
+linkage = ENV['USE_FRAMEWORKS']
+if linkage != nil
+  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
+  use_frameworks! :linkage => linkage.to_sym
+end
+
+target 'frontend' do
+  config = use_native_modules!
+
+  # Manually add RNWorklets pod since it's not being auto-detected
+  # pod 'RNWorklets', :path => '../node_modules/react-native-worklets'  # Removed along with react-native-reanimated
+  
+  use_react_native!(
+    :path => config[:reactNativePath],
+    # An absolute path to your application root.
+    :app_path => "#{Pod::Config.instance.installation_root}/.."
+  )
+
+  post_install do |installer|
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false,
+      # :ccache_enabled => true
+    )
+
+    # react-native-share 12.2.x advertises a new-arch spec name in package.json,
+    # but its iOS pod does not generate/link RNShareSpec.h for RN 0.84 pod builds.
+    # Keep the rest of the app on the new architecture and compile RNShare as a
+    # legacy bridge pod until the library catches up.
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'RNShare'
+
+      target.build_configurations.each do |build_configuration|
+        %w[OTHER_CPLUSPLUSFLAGS OTHER_SWIFT_FLAGS].each do |setting|
+          value = build_configuration.build_settings[setting]
+          next unless value.is_a?(String) && value.include?('RCT_NEW_ARCH_ENABLED')
+
+          build_configuration.build_settings[setting] =
+            value.gsub(/\s*-DRCT_NEW_ARCH_ENABLED(?:=1)?\b/, '')
+        end
+      end
+
+      target.source_build_phase.files.each do |build_file|
+        compiler_flags = build_file.settings&.fetch('COMPILER_FLAGS', nil)
+        next unless compiler_flags
+
+        flags = Shellwords.split(compiler_flags).reject { |flag| flag.include?('RCT_NEW_ARCH_ENABLED') }
+
+        if flags.empty?
+          build_file.settings.delete('COMPILER_FLAGS')
+        else
+          build_file.settings['COMPILER_FLAGS'] = flags.join(' ')
+        end
+      end
+    end
+
+    codegen_header_paths_by_target = {
+      'RNShare' => ['$(PODS_ROOT)/Headers/Public/ReactCodegen/RNShareSpec'],
+      'RNVectorIcons' => ['$(PODS_ROOT)/Headers/Public/ReactCodegen/RNVectorIconsSpec'],
+      'react-native-image-picker' => ['$(PODS_ROOT)/Headers/Public/ReactCodegen/RNImagePickerSpec'],
+    }
+
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |build_configuration|
+        build_configuration.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        build_configuration.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = ''
+
+        extra_header_paths = codegen_header_paths_by_target[target.name]
+        next if extra_header_paths.nil? || extra_header_paths.empty?
+
+        header_search_paths = build_configuration.build_settings['HEADER_SEARCH_PATHS'] || '$(inherited)'
+        header_search_paths = [header_search_paths] unless header_search_paths.is_a?(Array)
+        build_configuration.build_settings['HEADER_SEARCH_PATHS'] = (header_search_paths + extra_header_paths).uniq
+      end
+    end
+
+    # fmt 11.0.2 currently trips a consteval code path under Xcode 26.4's
+    # clang when it compiles the pod source file itself. Keep the compile-time
+    # format checking for app code, but downgrade the pod target to the runtime
+    # path so the native build remains stable.
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'fmt'
+
+      target.build_configurations.each do |build_configuration|
+        build_configuration.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+        definitions = build_configuration.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] || '$(inherited)'
+        definitions = [definitions] unless definitions.is_a?(Array)
+
+        unless definitions.any? { |definition| definition.include?('FMT_USE_CONSTEVAL=0') }
+          definitions << 'FMT_USE_CONSTEVAL=0'
+        end
+
+        build_configuration.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = definitions.uniq
+      end
+    end
+
+    (installer.aggregate_targets.map(&:user_project).uniq + [installer.pods_project]).uniq.each do |project|
+      project.build_configurations.each do |build_configuration|
+        build_configuration.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = ''
+      end
+
+      project.targets.each do |target|
+        target.build_configurations.each do |build_configuration|
+          build_configuration.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = ''
+        end
+      end
+
+      project.save
+    end
+  end
+end

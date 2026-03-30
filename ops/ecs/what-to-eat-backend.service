@@ -1,0 +1,16 @@
+[Unit]
+Description=What To Eat Backend
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/opt/what-to-eat/backend/current
+EnvironmentFile=/opt/what-to-eat/backend/shared/.env
+ExecStart=/usr/bin/java -jar /opt/what-to-eat/backend/current/app.jar --spring.profiles.active=${SPRING_PROFILES_ACTIVE}
+SuccessExitStatus=143
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

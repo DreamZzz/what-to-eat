@@ -1,0 +1,905 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>What To Eat API 调试台</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7efe7;
+      --panel: rgba(255, 250, 244, 0.92);
+      --panel-strong: #fffaf3;
+      --text: #24170f;
+      --muted: #765f50;
+      --brand: #b85c38;
+      --brand-2: #de8b5f;
+      --border: #e5d2c2;
+      --shadow: 0 18px 60px rgba(72, 43, 24, 0.14);
+      --radius: 22px;
+      --radius-sm: 14px;
+      --success: #18794e;
+      --danger: #b42318;
+      --code-bg: #1f1712;
+      --code-text: #f6e8df;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(222, 139, 95, 0.35), transparent 35%),
+        radial-gradient(circle at top right, rgba(184, 92, 56, 0.25), transparent 28%),
+        linear-gradient(180deg, #f9f1e8 0%, #f2e3d6 100%);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      padding: 24px;
+    }
+
+    .shell {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      gap: 18px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,248,240,0.92));
+      border: 1px solid rgba(229, 210, 194, 0.9);
+      box-shadow: var(--shadow);
+      border-radius: 28px;
+      padding: 22px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .hero-top {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .brand {
+      display: grid;
+      gap: 6px;
+    }
+
+    .brand-title {
+      font-size: 34px;
+      line-height: 1;
+      margin: 0;
+      font-weight: 900;
+      letter-spacing: -0.05em;
+    }
+
+    .brand-subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .status-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .badge {
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: rgba(184, 92, 56, 0.12);
+      color: var(--brand);
+      border: 1px solid rgba(184, 92, 56, 0.22);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .badge.ok {
+      color: var(--success);
+      background: rgba(24, 121, 78, 0.1);
+      border-color: rgba(24, 121, 78, 0.2);
+    }
+
+    .badge.warn {
+      color: var(--danger);
+      background: rgba(180, 35, 24, 0.1);
+      border-color: rgba(180, 35, 24, 0.18);
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .button {
+      appearance: none;
+      border: 0;
+      border-radius: 14px;
+      padding: 11px 14px;
+      font-weight: 800;
+      cursor: pointer;
+      background: var(--brand);
+      color: white;
+      transition: transform 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
+      box-shadow: 0 10px 24px rgba(184, 92, 56, 0.2);
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+    }
+
+    .button.secondary {
+      background: white;
+      color: var(--brand);
+      border: 1px solid var(--border);
+      box-shadow: none;
+    }
+
+    .button.ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px dashed var(--border);
+      box-shadow: none;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid rgba(229, 210, 194, 0.9);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .span-4 { grid-column: span 4; }
+    .span-5 { grid-column: span 5; }
+    .span-6 { grid-column: span 6; }
+    .span-7 { grid-column: span 7; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+
+    .card-title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 850;
+      letter-spacing: -0.02em;
+    }
+
+    .card-desc {
+      margin: -6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.8);
+      color: var(--text);
+      padding: 12px 13px;
+      font: inherit;
+      outline: none;
+      transition: border-color 120ms ease, box-shadow 120ms ease;
+    }
+
+    textarea {
+      min-height: 88px;
+      resize: vertical;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: rgba(184, 92, 56, 0.6);
+      box-shadow: 0 0 0 4px rgba(184, 92, 56, 0.1);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .row-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .helper {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      border: 1px solid var(--border);
+      background: white;
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 9px 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .tab.active {
+      background: rgba(184, 92, 56, 0.12);
+      color: var(--brand);
+      border-color: rgba(184, 92, 56, 0.24);
+    }
+
+    .panel {
+      border-radius: 18px;
+      padding: 14px;
+      background: rgba(255,255,255,0.74);
+      border: 1px solid rgba(229, 210, 194, 0.72);
+      display: grid;
+      gap: 12px;
+    }
+
+    .result {
+      min-height: 160px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 18px;
+      padding: 16px;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .request-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .list-item {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 12px;
+      background: rgba(255,255,255,0.9);
+      display: grid;
+      gap: 8px;
+    }
+
+    .recipe-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      font-weight: 850;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 800;
+      background: rgba(184, 92, 56, 0.12);
+      color: var(--brand);
+    }
+
+    .footer-note {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+      padding-bottom: 8px;
+    }
+
+    @media (max-width: 980px) {
+      .span-4, .span-5, .span-6, .span-7, .span-8, .span-12 {
+        grid-column: span 12;
+      }
+
+      .row, .row-3 {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-top">
+        <div class="brand">
+          <h1 class="brand-title">What To Eat API 调试台</h1>
+          <p class="brand-subtitle">用于快速验证登录、菜谱推荐、收藏、详情和语音转写接口。</p>
+        </div>
+        <div class="status-bar">
+          <span class="badge" id="apiBaseBadge">API: same-origin</span>
+          <span class="badge" id="tokenBadge">Token: not set</span>
+        </div>
+      </div>
+      <div class="toolbar">
+        <button class="button secondary" id="loadTokenButton">载入本地 Token</button>
+        <button class="button ghost" id="clearTokenButton">清空 Token</button>
+        <button class="button ghost" id="fillDemoButton">填充示例参数</button>
+      </div>
+      <div class="small">启动 backend 后直接访问 `/`，登录成功后所有请求都会自动带上保存的 JWT。</div>
+    </section>
+
+    <section class="grid">
+      <article class="card span-4">
+        <h2 class="card-title">1. 登录</h2>
+        <p class="card-desc">支持 demo 登录和手动用户名密码登录。</p>
+        <div class="form-grid" id="authForm">
+          <label>
+            用户名
+            <input id="usernameInput" autocomplete="username" placeholder="demo_admin" />
+          </label>
+          <label>
+            密码
+            <input id="passwordInput" type="password" autocomplete="current-password" placeholder="QuickStart123!" />
+          </label>
+          <div class="toolbar">
+            <button class="button" id="demoLoginButton">Demo Login</button>
+            <button class="button secondary" id="passwordLoginButton">用户名密码登录</button>
+          </div>
+          <div class="small" id="authInfo">未登录</div>
+        </div>
+      </article>
+
+      <article class="card span-8">
+        <h2 class="card-title">2. API 请求</h2>
+        <p class="card-desc">切换下面的标签来测试不同接口；响应会保留在页面里，方便复制与排查。</p>
+        <div class="tabs">
+          <button class="tab active" data-panel="recommend">菜谱推荐</button>
+          <button class="tab" data-panel="favorites">喜欢的菜谱</button>
+          <button class="tab" data-panel="recipe">菜谱详情</button>
+          <button class="tab" data-panel="preference">喜欢/讨厌</button>
+          <button class="tab" data-panel="voice">语音转写</button>
+        </div>
+
+        <div class="panel" id="recommendPanel">
+          <div class="row">
+            <label>
+              菜谱来源文本
+              <textarea id="sourceTextInput" placeholder="例如：番茄牛腩、鸡腿、菠菜"></textarea>
+            </label>
+            <label>
+              来源模式
+              <select id="sourceModeSelect">
+                <option value="TEXT">TEXT</option>
+                <option value="VOICE">VOICE</option>
+              </select>
+            </label>
+          </div>
+          <div class="row-3">
+            <label>
+              几个菜
+              <input id="dishCountInput" type="number" min="1" max="6" value="2" />
+            </label>
+            <label>
+              总热量
+              <input id="totalCaloriesInput" type="number" min="1" max="5000" value="900" />
+            </label>
+            <label>
+              语言
+              <input id="localeInput" value="zh-CN" />
+            </label>
+          </div>
+          <div class="row-3">
+            <label>
+              主食
+              <select id="stapleSelect">
+                <option value="RICE">RICE</option>
+                <option value="NOODLES">NOODLES</option>
+                <option value="POTATO">POTATO</option>
+                <option value="COARSE_GRAINS">COARSE_GRAINS</option>
+                <option value="NONE">NONE</option>
+              </select>
+            </label>
+            <label>
+              口味
+              <select id="flavorSelect">
+                <option value="LIGHT">LIGHT</option>
+                <option value="APPETIZING">APPETIZING</option>
+                <option value="RICH">RICH</option>
+              </select>
+            </label>
+            <label>
+              推荐按钮
+              <button class="button" id="recommendButton" type="button">POST /api/meals/recommendations</button>
+            </label>
+          </div>
+          <div class="helper">登录后调用。结果会自动展示在下方，并尝试记住返回的 recipe id，方便继续点喜欢/讨厌和查详情。</div>
+        </div>
+
+        <div class="panel" id="favoritesPanel" hidden>
+          <div class="row">
+            <label>
+              分页页码
+              <input id="favoritesPageInput" type="number" min="0" value="0" />
+            </label>
+            <label>
+              分页大小
+              <input id="favoritesSizeInput" type="number" min="1" max="10" value="10" />
+            </label>
+          </div>
+          <button class="button" id="favoritesButton" type="button">GET /api/meals/favorites</button>
+        </div>
+
+        <div class="panel" id="recipePanel" hidden>
+          <div class="row">
+            <label>
+              Recipe ID
+              <input id="recipeIdInput" type="number" min="1" placeholder="1" />
+            </label>
+            <label>
+              查详情
+              <button class="button" id="recipeButton" type="button">GET /api/meals/recipes/{id}</button>
+            </label>
+          </div>
+        </div>
+
+        <div class="panel" id="preferencePanel" hidden>
+          <div class="row">
+            <label>
+              Recipe ID
+              <input id="preferenceRecipeIdInput" type="number" min="1" placeholder="1" />
+            </label>
+            <label>
+              preference
+              <select id="preferenceSelect">
+                <option value="LIKE">LIKE</option>
+                <option value="DISLIKE">DISLIKE</option>
+              </select>
+            </label>
+          </div>
+          <button class="button" id="preferenceButton" type="button">PUT /api/meals/recipes/{id}/preference</button>
+        </div>
+
+        <div class="panel" id="voicePanel" hidden>
+          <div class="row">
+            <label>
+              音频文件
+              <input id="voiceFileInput" type="file" accept="audio/*,.m4a,.aac,.wav,.mp3" />
+            </label>
+            <label>
+              locale
+              <input id="voiceLocaleInput" value="zh-CN" />
+            </label>
+          </div>
+          <button class="button" id="voiceButton" type="button">POST /api/voice/transcriptions</button>
+        </div>
+      </article>
+
+      <article class="card span-12">
+        <h2 class="card-title">3. 请求与响应</h2>
+        <div class="request-meta" id="requestMeta">尚未发起请求</div>
+        <div class="result" id="resultBox">这里会显示 JSON 响应、错误或调试信息。</div>
+      </article>
+
+      <article class="card span-12">
+        <h2 class="card-title">4. 最近结果</h2>
+        <p class="card-desc">如果推荐接口返回了菜谱，这里会快速列出来，方便继续做详情/偏好测试。</p>
+        <div class="list" id="recipeList"></div>
+      </article>
+    </section>
+
+    <div class="footer-note">提示：如果后端返回 401，先用左侧登录区域获取 token，再重新发请求。</div>
+  </main>
+
+  <script>
+    const tokenKey = 'what-to-eat.debug.token';
+    const userKey = 'what-to-eat.debug.user';
+    const lastRecommendationKey = 'what-to-eat.debug.last-recommendation';
+
+    const state = {
+      token: localStorage.getItem(tokenKey) || '',
+      user: safeParse(localStorage.getItem(userKey)),
+      lastRecommendation: safeParse(localStorage.getItem(lastRecommendationKey)),
+      currentPanel: 'recommend',
+    };
+
+    const els = {
+      apiBaseBadge: document.getElementById('apiBaseBadge'),
+      tokenBadge: document.getElementById('tokenBadge'),
+      authInfo: document.getElementById('authInfo'),
+      requestMeta: document.getElementById('requestMeta'),
+      resultBox: document.getElementById('resultBox'),
+      recipeList: document.getElementById('recipeList'),
+      usernameInput: document.getElementById('usernameInput'),
+      passwordInput: document.getElementById('passwordInput'),
+      sourceTextInput: document.getElementById('sourceTextInput'),
+      sourceModeSelect: document.getElementById('sourceModeSelect'),
+      dishCountInput: document.getElementById('dishCountInput'),
+      totalCaloriesInput: document.getElementById('totalCaloriesInput'),
+      localeInput: document.getElementById('localeInput'),
+      stapleSelect: document.getElementById('stapleSelect'),
+      flavorSelect: document.getElementById('flavorSelect'),
+      recipeIdInput: document.getElementById('recipeIdInput'),
+      preferenceRecipeIdInput: document.getElementById('preferenceRecipeIdInput'),
+      preferenceSelect: document.getElementById('preferenceSelect'),
+      voiceFileInput: document.getElementById('voiceFileInput'),
+      voiceLocaleInput: document.getElementById('voiceLocaleInput'),
+      favoritesPageInput: document.getElementById('favoritesPageInput'),
+      favoritesSizeInput: document.getElementById('favoritesSizeInput'),
+    };
+
+    function safeParse(value) {
+      if (!value) return null;
+      try {
+        return JSON.parse(value);
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function setToken(token) {
+      state.token = token || '';
+      if (state.token) {
+        localStorage.setItem(tokenKey, state.token);
+        els.tokenBadge.textContent = 'Token: set';
+        els.tokenBadge.classList.add('ok');
+      } else {
+        localStorage.removeItem(tokenKey);
+        els.tokenBadge.textContent = 'Token: not set';
+        els.tokenBadge.classList.remove('ok');
+      }
+    }
+
+    function setUser(user) {
+      state.user = user || null;
+      if (state.user) {
+        localStorage.setItem(userKey, JSON.stringify(state.user));
+        els.authInfo.textContent = `已登录：${state.user.username || state.user.displayName || 'unknown'}`;
+      } else {
+        localStorage.removeItem(userKey);
+        els.authInfo.textContent = '未登录';
+      }
+    }
+
+    function setLastRecommendation(payload) {
+      state.lastRecommendation = payload || null;
+      if (state.lastRecommendation) {
+        localStorage.setItem(lastRecommendationKey, JSON.stringify(state.lastRecommendation));
+        const firstId = state.lastRecommendation.items?.[0]?.id;
+        if (firstId) {
+          els.recipeIdInput.value = firstId;
+          els.preferenceRecipeIdInput.value = firstId;
+        }
+      } else {
+        localStorage.removeItem(lastRecommendationKey);
+      }
+    }
+
+    function updateStatus() {
+      els.apiBaseBadge.textContent = 'API: same-origin';
+      if (state.token) {
+        els.tokenBadge.textContent = 'Token: set';
+        els.tokenBadge.classList.add('ok');
+      } else {
+        els.tokenBadge.textContent = 'Token: not set';
+        els.tokenBadge.classList.remove('ok');
+      }
+      if (state.user) {
+        els.authInfo.textContent = `已登录：${state.user.username || state.user.displayName || 'unknown'}`;
+      }
+    }
+
+    function pretty(value) {
+      if (typeof value === 'string') return value;
+      return JSON.stringify(value, null, 2);
+    }
+
+    function showResult(method, path, payload, response, ok = true) {
+      els.requestMeta.innerHTML = `<span class="pill">${method}</span><span>${path}</span>`;
+      els.resultBox.textContent = pretty(response);
+      if (!ok) {
+        els.resultBox.style.border = '1px solid rgba(180, 35, 24, 0.35)';
+      } else {
+        els.resultBox.style.border = 'none';
+      }
+      if (payload !== undefined) {
+        console.log('request payload:', payload);
+      }
+    }
+
+    async function requestJson(path, options = {}) {
+      const headers = new Headers(options.headers || {});
+      if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json');
+      }
+      if (state.token) {
+        headers.set('Authorization', `Bearer ${state.token}`);
+      }
+      const response = await fetch(path, {
+        ...options,
+        headers,
+      });
+      const contentType = response.headers.get('content-type') || '';
+      const data = contentType.includes('application/json')
+        ? await response.json()
+        : await response.text();
+      if (!response.ok) {
+        const message = data?.message || data?.error || data || `HTTP ${response.status}`;
+        throw new Error(typeof message === 'string' ? message : pretty(message));
+      }
+      return data;
+    }
+
+    async function demoLogin() {
+      try {
+        const data = await requestJson('/api/auth/demo-login', { method: 'POST' });
+        setToken(data.token);
+        setUser(data);
+        showResult('POST', '/api/auth/demo-login', null, data);
+      } catch (error) {
+        showResult('POST', '/api/auth/demo-login', null, { error: error.message }, false);
+      }
+    }
+
+    async function passwordLogin() {
+      const payload = {
+        username: els.usernameInput.value.trim(),
+        password: els.passwordInput.value,
+      };
+      try {
+        const data = await requestJson('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        setToken(data.token);
+        setUser(data);
+        showResult('POST', '/api/auth/login', payload, data);
+      } catch (error) {
+        showResult('POST', '/api/auth/login', payload, { error: error.message }, false);
+      }
+    }
+
+    async function recommendMeals() {
+      const payload = {
+        sourceText: els.sourceTextInput.value.trim(),
+        sourceMode: els.sourceModeSelect.value,
+        dishCount: Number(els.dishCountInput.value || 0),
+        totalCalories: Number(els.totalCaloriesInput.value || 0),
+        staple: els.stapleSelect.value,
+        flavor: els.flavorSelect.value,
+        locale: els.localeInput.value.trim() || 'zh-CN',
+      };
+      try {
+        const data = await requestJson('/api/meals/recommendations', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        setLastRecommendation(data);
+        renderRecipeList(data.items || []);
+        showResult('POST', '/api/meals/recommendations', payload, data);
+      } catch (error) {
+        showResult('POST', '/api/meals/recommendations', payload, { error: error.message }, false);
+      }
+    }
+
+    async function loadFavorites() {
+      const payload = {
+        page: Number(els.favoritesPageInput.value || 0),
+        size: Number(els.favoritesSizeInput.value || 10),
+      };
+      try {
+        const data = await requestJson(`/api/meals/favorites?page=${payload.page}&size=${payload.size}`, {
+          method: 'GET',
+        });
+        renderRecipeList(data.items || []);
+        showResult('GET', `/api/meals/favorites?page=${payload.page}&size=${payload.size}`, payload, data);
+      } catch (error) {
+        showResult('GET', '/api/meals/favorites', payload, { error: error.message }, false);
+      }
+    }
+
+    async function loadRecipeById() {
+      const id = els.recipeIdInput.value.trim();
+      if (!id) {
+        showResult('GET', '/api/meals/recipes/{id}', null, { error: '请输入 Recipe ID' }, false);
+        return;
+      }
+      try {
+        const data = await requestJson(`/api/meals/recipes/${encodeURIComponent(id)}`);
+        showResult('GET', `/api/meals/recipes/${id}`, { id }, data);
+      } catch (error) {
+        showResult('GET', `/api/meals/recipes/${id}`, { id }, { error: error.message }, false);
+      }
+    }
+
+    async function updatePreference() {
+      const id = els.preferenceRecipeIdInput.value.trim();
+      const preference = els.preferenceSelect.value;
+      if (!id) {
+        showResult('PUT', '/api/meals/recipes/{id}/preference', null, { error: '请输入 Recipe ID' }, false);
+        return;
+      }
+      const payload = { preference };
+      try {
+        const data = await requestJson(`/api/meals/recipes/${encodeURIComponent(id)}/preference`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+        showResult('PUT', `/api/meals/recipes/${id}/preference`, payload, data);
+      } catch (error) {
+        showResult('PUT', `/api/meals/recipes/${id}/preference`, payload, { error: error.message }, false);
+      }
+    }
+
+    async function transcribeVoice() {
+      const file = els.voiceFileInput.files && els.voiceFileInput.files[0];
+      if (!file) {
+        showResult('POST', '/api/voice/transcriptions', null, { error: '请选择一个音频文件' }, false);
+        return;
+      }
+      const formData = new FormData();
+      formData.append('audio', file);
+      formData.append('locale', els.voiceLocaleInput.value.trim() || 'zh-CN');
+      try {
+        const data = await requestJson('/api/voice/transcriptions', {
+          method: 'POST',
+          body: formData,
+          headers: {},
+        });
+        if (data?.text) {
+          els.sourceTextInput.value = data.text;
+        }
+        els.sourceModeSelect.value = 'VOICE';
+        showResult('POST', '/api/voice/transcriptions', { audio: file.name, locale: els.voiceLocaleInput.value }, data);
+      } catch (error) {
+        showResult('POST', '/api/voice/transcriptions', { audio: file.name, locale: els.voiceLocaleInput.value }, { error: error.message }, false);
+      }
+    }
+
+    function renderRecipeList(items) {
+      if (!items || !items.length) {
+        els.recipeList.innerHTML = '<div class="small">暂无菜谱结果。</div>';
+        return;
+      }
+      els.recipeList.innerHTML = items.map((item) => {
+        const ingredients = Array.isArray(item.ingredients) ? item.ingredients.map(formatLine).join('，') : '';
+        const seasonings = Array.isArray(item.seasonings) ? item.seasonings.map(formatLine).join('，') : '';
+        const steps = Array.isArray(item.steps) ? item.steps.map((step) => `${step.index}. ${step.content}`).join('<br>') : '';
+        return `
+          <div class="list-item">
+            <div class="recipe-title">
+              <span>${escapeHtml(item.title || '未命名菜谱')}</span>
+              <span class="pill">${escapeHtml(String(item.preference || 'NONE'))}</span>
+            </div>
+            <div class="small">ID: ${escapeHtml(String(item.id ?? '-'))} | 热量: ${escapeHtml(String(item.estimatedCalories ?? '-'))}</div>
+            <div class="small"><strong>摘要：</strong>${escapeHtml(item.summary || '')}</div>
+            <div class="small"><strong>食材：</strong>${escapeHtml(ingredients || '无')}</div>
+            <div class="small"><strong>佐料：</strong>${escapeHtml(seasonings || '无')}</div>
+            <div class="small"><strong>做法：</strong><br>${steps || '无'}</div>
+            <div class="small"><strong>图片：</strong>${escapeHtml(item.imageUrl || '无')}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function formatLine(item) {
+      if (!item) return '';
+      if (typeof item === 'string') return item;
+      return `${item.name || item.label || ''}${item.amount ? `(${item.amount})` : ''}`.trim();
+    }
+
+    function escapeHtml(input) {
+      return String(input)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function fillDemo() {
+      els.usernameInput.value = 'demo_admin';
+      els.passwordInput.value = 'QuickStart123!';
+      els.sourceTextInput.value = '番茄牛腩、鸡胸肉、西兰花';
+      els.sourceModeSelect.value = 'TEXT';
+      els.dishCountInput.value = '2';
+      els.totalCaloriesInput.value = '900';
+      els.localeInput.value = 'zh-CN';
+      els.stapleSelect.value = 'RICE';
+      els.flavorSelect.value = 'LIGHT';
+      els.favoritesPageInput.value = '0';
+      els.favoritesSizeInput.value = '10';
+    }
+
+    function switchPanel(panelName) {
+      state.currentPanel = panelName;
+      document.querySelectorAll('.tab').forEach((tab) => {
+        tab.classList.toggle('active', tab.dataset.panel === panelName);
+      });
+      document.getElementById('recommendPanel').hidden = panelName !== 'recommend';
+      document.getElementById('favoritesPanel').hidden = panelName !== 'favorites';
+      document.getElementById('recipePanel').hidden = panelName !== 'recipe';
+      document.getElementById('preferencePanel').hidden = panelName !== 'preference';
+      document.getElementById('voicePanel').hidden = panelName !== 'voice';
+    }
+
+    document.getElementById('demoLoginButton').addEventListener('click', demoLogin);
+    document.getElementById('passwordLoginButton').addEventListener('click', passwordLogin);
+    document.getElementById('recommendButton').addEventListener('click', recommendMeals);
+    document.getElementById('favoritesButton').addEventListener('click', loadFavorites);
+    document.getElementById('recipeButton').addEventListener('click', loadRecipeById);
+    document.getElementById('preferenceButton').addEventListener('click', updatePreference);
+    document.getElementById('voiceButton').addEventListener('click', transcribeVoice);
+    document.getElementById('loadTokenButton').addEventListener('click', () => setToken(localStorage.getItem(tokenKey) || ''));
+    document.getElementById('clearTokenButton').addEventListener('click', () => {
+      setToken('');
+      setUser(null);
+      showResult('TOKEN', 'localStorage', null, { message: 'Token 已清空' });
+    });
+    document.getElementById('fillDemoButton').addEventListener('click', fillDemo);
+    document.querySelectorAll('.tab').forEach((tab) => {
+      tab.addEventListener('click', () => switchPanel(tab.dataset.panel));
+    });
+
+    setToken(state.token);
+    setUser(state.user);
+    if (state.lastRecommendation?.items?.length) {
+      renderRecipeList(state.lastRecommendation.items);
+    } else {
+      renderRecipeList([]);
+    }
+    updateStatus();
+    switchPanel('recommend');
+
+    if (state.lastRecommendation?.requestId) {
+      els.requestMeta.innerHTML = `<span class="pill">cached</span><span>${escapeHtml(state.lastRecommendation.requestId)}</span>`;
+      els.resultBox.textContent = JSON.stringify(state.lastRecommendation, null, 2);
+    }
+  </script>
+</body>
+</html>

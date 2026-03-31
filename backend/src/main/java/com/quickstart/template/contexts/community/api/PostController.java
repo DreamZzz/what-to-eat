@@ -1,3 +1,5 @@
+// LEGACY DEMO — DO NOT EXTEND. Retained from social-app scaffold; no UI entry points in What To Eat.
+// Scheduled for removal. See TECH_DEBT.md [P2-4].
 package com.quickstart.template.contexts.community.api;
 
 import com.quickstart.template.contexts.community.api.dto.PostCollectionResponse;

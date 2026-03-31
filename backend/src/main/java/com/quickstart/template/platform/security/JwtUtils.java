@@ -2,6 +2,9 @@ package com.quickstart.template.platform.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
@@ -14,13 +17,32 @@ import java.util.function.Function;
 
 @Component
 public class JwtUtils {
-    
+
+    private static final Logger log = LoggerFactory.getLogger(JwtUtils.class);
+    private static final String INSECURE_DEFAULT = "your-jwt-secret-key-change-in-production";
+    private static final int MIN_SECRET_BYTES = 32;
+
     @Value("${app.jwt.secret}")
     private String jwtSecret;
-    
+
     @Value("${app.jwt.expiration-ms}")
     private int jwtExpirationMs;
-    
+
+    @PostConstruct
+    public void validateJwtSecret() {
+        if (INSECURE_DEFAULT.equals(jwtSecret)) {
+            throw new IllegalStateException(
+                "JWT secret is using the insecure default value. " +
+                "Set APP_JWT_SECRET to a strong random secret before starting the application.");
+        }
+        if (jwtSecret == null || jwtSecret.getBytes().length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(
+                "JWT secret is too short. It must be at least " + MIN_SECRET_BYTES +
+                " bytes. Current length: " + (jwtSecret == null ? 0 : jwtSecret.getBytes().length));
+        }
+        log.info("JWT secret validated successfully ({} bytes)", jwtSecret.getBytes().length);
+    }
+
     private Key getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }

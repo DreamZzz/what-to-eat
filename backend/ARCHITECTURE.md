@@ -14,10 +14,14 @@
 
 - `account`
   - Owns the `User` aggregate, authentication workflows, and profile management.
-- `community`
-  - Owns post and comment workflows plus post-search infrastructure.
+- `community` ⚠️ **LEGACY DEMO — DO NOT EXTEND**
+  - Contains post/comment workflows retained from the social-app scaffold.
+  - No UI entry points exist in What To Eat. Do not add features here.
+  - Scheduled for removal in a future cleanup sprint (tracked in TECH_DEBT.md [P2-4]).
 - `location`
   - Owns location suggestion APIs and map-provider integration.
+- `meal`
+  - Core business context. Owns meal catalog, LLM-based recipe generation, favorites.
 - `media`
   - Owns upload APIs and media storage/compression policies.
 
@@ -27,6 +31,12 @@
 - `application` -> `domain` and `infrastructure`
 - `domain` must not depend on `api`
 - `platform` can be used by any context for technical concerns, but business rules stay inside `contexts/*`
+
+## API Versioning
+
+- Existing routes (`/api/auth/**`, `/api/meals/**`, `/api/users/**`, etc.) keep their paths.
+- **All new routes must use the `/api/v1/` prefix.**
+- Nginx rewrites existing unversioned paths to the current implementation; no client-side changes needed when a path migrates.
 
 ## Notes
 

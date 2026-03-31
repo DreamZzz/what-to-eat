@@ -4,6 +4,7 @@ import com.quickstart.template.contexts.account.api.dto.UserDTO;
 import com.quickstart.template.contexts.account.domain.User;
 import com.quickstart.template.contexts.account.application.UserService;
 import com.quickstart.template.platform.security.CurrentUserService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -36,7 +37,7 @@ public class UserController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> updateUserProfile(
             @PathVariable Long id,
-            @RequestBody UserDTO userDTO) {
+            @Valid @RequestBody UserDTO userDTO) {
         Optional<User> currentUser = currentUserService.getCurrentUser();
         if (currentUser.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Authentication required");

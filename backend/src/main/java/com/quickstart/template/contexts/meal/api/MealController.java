@@ -6,6 +6,7 @@ import com.quickstart.template.contexts.meal.api.dto.MealRecommendationRequestDT
 import com.quickstart.template.contexts.meal.api.dto.MealRecommendationResponseDTO;
 import com.quickstart.template.contexts.meal.api.dto.MealRecipeCollectionResponseDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeDTO;
+import com.quickstart.template.contexts.meal.api.dto.RecipeImageResponseDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipePreferenceRequestDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipePreferenceResponseDTO;
 import com.quickstart.template.contexts.meal.application.MealGenerationException;
@@ -16,11 +17,15 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/meals")
@@ -46,8 +51,6 @@ public class MealController {
         try {
             MealRecommendationResponseDTO response = mealService.recommendRecipes(request, currentUserId.get());
             return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException exception) {
-            return ResponseEntity.badRequest().body(new MessageResponse(exception.getMessage()));
         } catch (MealGenerationException exception) {
             HttpStatus status = exception.isConfiguration() ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_GATEWAY;
             return ResponseEntity.status(status).body(new MessageResponse(
@@ -57,6 +60,44 @@ public class MealController {
                     exception.isConfiguration()
             ));
         }
+    }
+
+    @PostMapping(value = "/recommendations/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamRecommendations(@Valid @RequestBody MealRecommendationRequestDTO request) {
+        Optional<Long> currentUserId = getCurrentUserId();
+        SseEmitter emitter = new SseEmitter(120_000L);
+
+        if (currentUserId.isEmpty()) {
+            try {
+                emitter.send(SseEmitter.event().name("error").data("{\"message\":\"Authentication required\"}"));
+            } catch (IOException ignored) {
+            }
+            emitter.complete();
+            return emitter;
+        }
+
+        Long userId = currentUserId.get();
+
+        emitter.onTimeout(() -> sendErrorAndComplete(emitter, "生成超时，请重试"));
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                mealService.streamRecommendations(request, userId, recipe -> {
+                    try {
+                        emitter.send(SseEmitter.event().name("recipe").data(recipe, MediaType.APPLICATION_JSON));
+                    } catch (IOException e) {
+                        throw new RuntimeException("SSE write failed", e);
+                    }
+                });
+                emitter.complete();
+            } catch (MealGenerationException e) {
+                sendErrorAndComplete(emitter, e.getMessage());
+            } catch (Exception e) {
+                sendErrorAndComplete(emitter, "生成失败，请重试");
+            }
+        });
+
+        return emitter;
     }
 
     @GetMapping("/catalog")
@@ -79,6 +120,18 @@ public class MealController {
 
         Optional<RecipeDTO> recipe = mealService.getRecipe(recipeId, currentUserId.get());
         return recipe.<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("Recipe not found")));
+    }
+
+    @PostMapping("/recipes/{recipeId}/image")
+    public ResponseEntity<?> fetchRecipeImage(@PathVariable Long recipeId) {
+        Optional<Long> currentUserId = getCurrentUserId();
+        if (currentUserId.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new MessageResponse("Authentication required"));
+        }
+
+        Optional<RecipeImageResponseDTO> result = mealService.fetchRecipeImage(recipeId, currentUserId.get());
+        return result.<ResponseEntity<?>>map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("Recipe not found")));
     }
 
@@ -108,6 +161,15 @@ public class MealController {
         Pageable pageable = PageRequest.of(Math.max(page, 0), normalizePageSize(size));
         MealRecipeCollectionResponseDTO response = mealService.getFavorites(currentUserId.get(), pageable);
         return ResponseEntity.ok(response);
+    }
+
+    private void sendErrorAndComplete(SseEmitter emitter, String message) {
+        try {
+            emitter.send(SseEmitter.event().name("error")
+                    .data(new MessageResponse(message), MediaType.APPLICATION_JSON));
+        } catch (IOException ignored) {
+        }
+        emitter.complete();
     }
 
     private Optional<Long> getCurrentUserId() {

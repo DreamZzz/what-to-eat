@@ -17,3 +17,4 @@ frontend/metro.log
 frontend/metro-start.log
 
 tmp/
+.claude/

@@ -575,7 +575,6 @@ export function createMealRecipeCollectionResponseDTO(overrides = {}) {
  * @property {number|null} dishCount
  * @property {number|null} totalCalories
  * @property {string|null} staple
- * @property {string|null} flavor
  * @property {string|null} locale
  */
 
@@ -585,7 +584,6 @@ export const MEAL_RECOMMENDATION_FORM_DTO_FIELDS = Object.freeze([
   'dishCount',
   'totalCalories',
   'staple',
-  'flavor',
   'locale',
 ]);
 
@@ -600,7 +598,6 @@ export function createMealRecommendationFormDTO(overrides = {}) {
     dishCount: null,
     totalCalories: null,
     staple: null,
-    flavor: null,
     locale: null,
     ...overrides,
   };
@@ -614,8 +611,8 @@ export function createMealRecommendationFormDTO(overrides = {}) {
  * @property {number|null} dishCount
  * @property {number|null} totalCalories
  * @property {string|null} staple
- * @property {string|null} flavor
  * @property {string|null} locale
+ * @property {Array<string>} recentDishTitles
  */
 
 export const MEAL_RECOMMENDATION_REQUEST_DTO_FIELDS = Object.freeze([
@@ -625,8 +622,8 @@ export const MEAL_RECOMMENDATION_REQUEST_DTO_FIELDS = Object.freeze([
   'dishCount',
   'totalCalories',
   'staple',
-  'flavor',
   'locale',
+  'recentDishTitles',
 ]);
 
 /**
@@ -641,8 +638,8 @@ export function createMealRecommendationRequestDTO(overrides = {}) {
     dishCount: null,
     totalCalories: null,
     staple: null,
-    flavor: null,
     locale: null,
+    recentDishTitles: [],
     ...overrides,
   };
 }
@@ -694,6 +691,7 @@ export function createMealRecommendationResponseDTO(overrides = {}) {
  * @property {Array<RecipeStepDTO>} steps
  * @property {string|null} imageUrl
  * @property {string|null} imageStatus
+ * @property {string|null} stepsStatus
  * @property {string|null} preference
  */
 
@@ -708,6 +706,7 @@ export const RECIPE_DTO_FIELDS = Object.freeze([
   'steps',
   'imageUrl',
   'imageStatus',
+  'stepsStatus',
   'preference',
 ]);
 
@@ -727,7 +726,34 @@ export function createRecipeDTO(overrides = {}) {
     steps: [],
     imageUrl: null,
     imageStatus: null,
+    stepsStatus: null,
     preference: null,
+    ...overrides,
+  };
+}
+
+/**
+ * @typedef {Object} RecipeImageResponseDTO
+ * @property {number|null} recipeId
+ * @property {string|null} imageUrl
+ * @property {string|null} imageStatus
+ */
+
+export const RECIPE_IMAGE_RESPONSE_DTO_FIELDS = Object.freeze([
+  'recipeId',
+  'imageUrl',
+  'imageStatus',
+]);
+
+/**
+ * @param {Partial<RecipeImageResponseDTO>} [overrides={}]
+ * @returns {RecipeImageResponseDTO}
+ */
+export function createRecipeImageResponseDTO(overrides = {}) {
+  return {
+    recipeId: null,
+    imageUrl: null,
+    imageStatus: null,
     ...overrides,
   };
 }
@@ -997,6 +1023,7 @@ export const CONTRACT_MODEL_NAMES = Object.freeze([
   'MealRecommendationRequestDTO',
   'MealRecommendationResponseDTO',
   'RecipeDTO',
+  'RecipeImageResponseDTO',
   'RecipeIngredientDTO',
   'RecipePreferenceRequestDTO',
   'RecipePreferenceResponseDTO',
@@ -1030,6 +1057,7 @@ export const CONTRACT_MODEL_FACTORIES = Object.freeze({
   MealRecommendationRequestDTO: createMealRecommendationRequestDTO,
   MealRecommendationResponseDTO: createMealRecommendationResponseDTO,
   RecipeDTO: createRecipeDTO,
+  RecipeImageResponseDTO: createRecipeImageResponseDTO,
   RecipeIngredientDTO: createRecipeIngredientDTO,
   RecipePreferenceRequestDTO: createRecipePreferenceRequestDTO,
   RecipePreferenceResponseDTO: createRecipePreferenceResponseDTO,

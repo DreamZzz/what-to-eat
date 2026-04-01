@@ -1,6 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -11,94 +10,11 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { mealAPI } from '../api';
-import { FLAVOR_LABEL_MAP, FLAVOR_OPTIONS, STAPLE_LABEL_MAP, STAPLE_OPTIONS } from '../constants';
-import { createMealForm, normalizeRecommendationResponse } from '../utils';
-import { getResponseErrorMessage } from '../../../utils/apiError';
+import { STAPLE_OPTIONS } from '../constants';
+import { useMealFormViewModel } from '../viewModels/useMealFormViewModel';
 
 const MealFormScreen = ({ navigation, route }) => {
-  const initialSourceText = route.params?.sourceText || '';
-  const initialSourceMode = route.params?.sourceMode || 'TEXT';
-  const catalogItemId = route.params?.catalogItemId ?? null;
-
-  const [sourceText, setSourceText] = useState(initialSourceText);
-  const [dishCount, setDishCount] = useState('2');
-  const [totalCalories, setTotalCalories] = useState('900');
-  const [staple, setStaple] = useState('RICE');
-  const [flavor, setFlavor] = useState('LIGHT');
-  const [loading, setLoading] = useState(false);
-
-  const formPreview = useMemo(
-    () =>
-      createMealForm({
-        sourceText,
-        sourceMode: initialSourceMode,
-        dishCount: Number(dishCount) || 0,
-        totalCalories: Number(totalCalories) || 0,
-        staple,
-        flavor,
-      }),
-    [dishCount, flavor, initialSourceMode, sourceText, staple, totalCalories]
-  );
-
-  const validateForm = () => {
-    const normalizedText = sourceText.trim();
-    const nextDishCount = Number.parseInt(dishCount, 10);
-    const nextCalories = Number.parseInt(totalCalories, 10);
-
-    if (!normalizedText) {
-      return '请输入菜名、食材或口味偏好';
-    }
-
-    if (!Number.isInteger(nextDishCount) || nextDishCount < 1 || nextDishCount > 6) {
-      return '几个菜需要在 1 到 6 之间';
-    }
-
-    if (!Number.isInteger(nextCalories) || nextCalories < 1 || nextCalories > 5000) {
-      return '总热量需要在 1 到 5000 之间';
-    }
-
-    return '';
-  };
-
-  const handleSubmit = async () => {
-    const validationError = validateForm();
-    if (validationError) {
-      Alert.alert('请先完善表单', validationError);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const payload = {
-        sourceText: sourceText.trim(),
-        sourceMode: initialSourceMode,
-        ...(catalogItemId != null ? { catalogItemId } : {}),
-        dishCount: Number.parseInt(dishCount, 10),
-        totalCalories: Number.parseInt(totalCalories, 10),
-        staple,
-        flavor,
-        locale: 'zh-CN',
-      };
-
-      const response = await mealAPI.recommendMeals(payload);
-      const recommendation = normalizeRecommendationResponse(response.data || {});
-
-      navigation.navigate('MealResults', {
-        recommendation,
-        form: payload,
-      });
-    } catch (error) {
-      console.error('Meal recommendation failed:', error);
-      const isUnauthorized = error?.response?.status === 401 || error?.response?.status === 403;
-      Alert.alert(
-        isUnauthorized ? '登录已失效' : '生成失败',
-        getResponseErrorMessage(error, isUnauthorized ? '请重新登录后再试。' : '请稍后重试')
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  const vm = useMealFormViewModel(navigation, route);
 
   return (
     <KeyboardAvoidingView
@@ -109,12 +25,12 @@ const MealFormScreen = ({ navigation, route }) => {
         <View style={styles.card}>
           <View style={styles.headerRow}>
             <View style={styles.badge}>
-              <Icon name={initialSourceMode === 'VOICE' ? 'mic' : 'pencil'} size={14} color="#B85C38" />
+              <Icon name={vm.initialSourceMode === 'VOICE' ? 'mic' : 'pencil'} size={14} color="#B85C38" />
               <Text style={styles.badgeText}>
-                {initialSourceMode === 'VOICE' ? '语音已转写' : '文字输入'}
+                {vm.initialSourceMode === 'VOICE' ? '语音已转写' : '文字输入'}
               </Text>
             </View>
-            {catalogItemId != null ? (
+            {vm.catalogItemId != null ? (
               <View style={styles.catalogBadge}>
                 <Icon name="library-outline" size={14} color="#B85C38" />
                 <Text style={styles.catalogBadgeText}>基础菜单灵感</Text>
@@ -130,8 +46,8 @@ const MealFormScreen = ({ navigation, route }) => {
           <View style={styles.section}>
             <Text style={styles.label}>你想吃什么</Text>
             <TextInput
-              value={sourceText}
-              onChangeText={setSourceText}
+              value={vm.sourceText}
+              onChangeText={vm.setSourceText}
               placeholder="例如：番茄牛腩、鸡腿、菠菜"
               placeholderTextColor="#B8927C"
               style={styles.sourceInput}
@@ -143,8 +59,8 @@ const MealFormScreen = ({ navigation, route }) => {
             <View style={styles.column}>
               <Text style={styles.label}>几个菜</Text>
               <TextInput
-                value={dishCount}
-                onChangeText={setDishCount}
+                value={vm.dishCount}
+                onChangeText={vm.setDishCount}
                 placeholder="2"
                 placeholderTextColor="#B8927C"
                 keyboardType="number-pad"
@@ -154,8 +70,8 @@ const MealFormScreen = ({ navigation, route }) => {
             <View style={styles.column}>
               <Text style={styles.label}>总热量</Text>
               <TextInput
-                value={totalCalories}
-                onChangeText={setTotalCalories}
+                value={vm.totalCalories}
+                onChangeText={vm.setTotalCalories}
                 placeholder="900"
                 placeholderTextColor="#B8927C"
                 keyboardType="number-pad"
@@ -170,35 +86,13 @@ const MealFormScreen = ({ navigation, route }) => {
               {STAPLE_OPTIONS.map((option) => (
                 <TouchableOpacity
                   key={option.value}
-                  style={[styles.optionPill, staple === option.value && styles.optionPillActive]}
-                  onPress={() => setStaple(option.value)}
+                  style={[styles.optionPill, vm.staple === option.value && styles.optionPillActive]}
+                  onPress={() => vm.setStaple(option.value)}
                 >
                   <Text
                     style={[
                       styles.optionText,
-                      staple === option.value && styles.optionTextActive,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.label}>口味</Text>
-            <View style={styles.optionRow}>
-              {FLAVOR_OPTIONS.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[styles.optionPill, flavor === option.value && styles.optionPillActive]}
-                  onPress={() => setFlavor(option.value)}
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      flavor === option.value && styles.optionTextActive,
+                      vm.staple === option.value && styles.optionTextActive,
                     ]}
                   >
                     {option.label}
@@ -210,17 +104,11 @@ const MealFormScreen = ({ navigation, route }) => {
 
           <View style={styles.previewBox}>
             <Text style={styles.previewLabel}>表单预览</Text>
-            <Text style={styles.previewText}>
-              {formPreview.dishCount} 道菜 · {formPreview.totalCalories} kcal · {STAPLE_LABEL_MAP[formPreview.staple]} · {FLAVOR_LABEL_MAP[formPreview.flavor]}
-            </Text>
+            <Text style={styles.previewText}>{vm.previewText}</Text>
           </View>
 
-          <TouchableOpacity
-            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            <Text style={styles.submitText}>{loading ? '生成中...' : '生成菜谱'}</Text>
+          <TouchableOpacity style={styles.submitButton} onPress={vm.handleSubmit}>
+            <Text style={styles.submitText}>生成菜谱</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -374,9 +262,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#B85C38',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#C48B74',
   },
   submitText: {
     color: '#FFF8F0',

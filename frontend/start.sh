@@ -709,10 +709,12 @@ start_device() {
 
     if [ "$APP_ENV" = "remote" ]; then
         print_info "远端真机联调使用 Release 构建，不依赖 Metro"
-        npx react-native run-ios --mode Release --no-packager --device "$resolved_device_name" 2>&1 | tee "$device_run_log"
+        npx react-native run-ios --mode Release --no-packager --device "$resolved_device_name" \
+            --extra-params "-allowProvisioningUpdates" 2>&1 | tee "$device_run_log"
     else
         print_info "真机本地联调使用 Release 构建，并通过局域网代理访问本机后端"
-        npx react-native run-ios --mode Release --no-packager --device "$resolved_device_name" 2>&1 | tee "$device_run_log"
+        npx react-native run-ios --mode Release --no-packager --device "$resolved_device_name" \
+            --extra-params "-allowProvisioningUpdates" 2>&1 | tee "$device_run_log"
     fi
 
     if grep -q "Could not find a physical device" "$device_run_log"; then

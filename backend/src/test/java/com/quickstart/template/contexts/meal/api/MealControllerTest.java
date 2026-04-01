@@ -91,7 +91,6 @@ class MealControllerTest {
         form.setDishCount(1);
         form.setTotalCalories(600);
         form.setStaple("NOODLES");
-        form.setFlavor("LIGHT");
         form.setLocale("zh-CN");
 
         MealRecommendationResponseDTO response = new MealRecommendationResponseDTO();
@@ -116,7 +115,6 @@ class MealControllerTest {
                                   "dishCount": 1,
                                   "totalCalories": 600,
                                   "staple": "NOODLES",
-                                  "flavor": "LIGHT",
                                   "locale": "zh-CN"
                                 }
                                 """))

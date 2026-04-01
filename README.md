@@ -16,11 +16,12 @@ what-to-eat/
 │   ├── sql/                 # bootstrap / demo seed
 │   ├── src/main/java/com/quickstart/template/
 │   │   ├── platform/        # config / security / provider
-│   │   └── modules/         # identity / profile / media / location / search / social
+│   │   └── contexts/        # account / meal / media / community / location
+│   ├── DEPLOY_ECS.md        # ECS 生产部署指南（eat.868299.com）
 │   └── start.sh             # 本地 / 生产环境启动入口
 ├── frontend/                # React Native App（iOS-first）
 │   ├── src/app/             # app shell / provider / runtime config / navigation
-│   ├── src/features/        # auth / content / comments / location / media / profile / search
+│   ├── src/features/        # auth / meal / media / profile / search / ...
 │   ├── src/shared/          # shared api / exports
 │   └── start.sh             # local / remote / device / metro 统一入口
 ├── ops/                     # ECS / Nginx / systemd / smoke 脚本
@@ -48,7 +49,7 @@ what-to-eat/
 - `APP_SEARCH_PROVIDER=database|elasticsearch`
 - `APP_SPEECH_PROVIDER=mock|aliyun`
 - `APP_LLM_PROVIDER=mock|openai-compatible`
-- `APP_LLM_IMAGE_PROVIDER=disabled|openai-compatible`
+- `APP_LLM_IMAGE_PROVIDER=disabled|web-search|openai-compatible`
 
 ## 接口契约同步
 
@@ -72,8 +73,8 @@ CREATE DATABASE what_to_eat_db;
 ```
 
 ```bash
-psql -d quickstart_template_db -f backend/sql/bootstrap.sql
-psql -d quickstart_template_db -f backend/sql/seed-demo.sql
+psql -d what_to_eat_db -f backend/sql/bootstrap.sql
+psql -d what_to_eat_db -f backend/sql/seed-demo.sql
 ```
 
 默认开发账号：
@@ -111,6 +112,23 @@ cd frontend
 ```bash
 ./ops/scripts/smoke-api.sh
 ```
+
+## 生产部署
+
+后端已部署至 `https://eat.868299.com`（阿里云 ECS，端口 8081，systemd + Nginx + Let's Encrypt）。
+
+```bash
+# 本地打包后 SCP 上传并重启
+mvn -DskipTests package
+scp target/template-backend-0.0.1-SNAPSHOT.jar \
+    root@101.37.209.236:/opt/what-to-eat/backend/current/app.jar
+ssh root@101.37.209.236 "chown deploy:deploy /opt/what-to-eat/backend/current/app.jar && systemctl restart what-to-eat-backend"
+
+# 前端 Remote 模式连接生产
+cd frontend && ./start.sh device remote "你的 iPhone 设备名"
+```
+
+详细步骤见 `backend/DEPLOY_ECS.md`。
 
 ## 开发约定
 

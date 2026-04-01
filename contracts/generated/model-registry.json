@@ -328,7 +328,7 @@
     {
       "className": "SmsCodeRequest",
       "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/SmsCodeRequest.java",
-      "sourceHash": "23522d3cb7000565c73a6bbec731a3ca8d2c86c85c08c645bdf5ee56ed743f03",
+      "sourceHash": "ddc4b07834c81daa2d9d9e78c721a6a3a3bb93eb7d39ccf9c4d87246824ef765",
       "fields": [
         {
           "name": "phone",
@@ -339,7 +339,7 @@
     {
       "className": "SmsLoginRequest",
       "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/SmsLoginRequest.java",
-      "sourceHash": "e85c88298b37b5953da8ce6a765aa5e4e0b37ae675c9e9ad6c73ebbb56ea46e3",
+      "sourceHash": "6fc471f300e6c4e7d59f9028361a028af64f6e6cccc1736ea230edf224e1de2e",
       "fields": [
         {
           "name": "phone",
@@ -662,7 +662,7 @@
     {
       "className": "MealRecommendationFormDTO",
       "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/MealRecommendationFormDTO.java",
-      "sourceHash": "db46580def309795f866e2ddb1a8efb58a26ea04424255bb5862c4b65e49da4f",
+      "sourceHash": "d34cb95b2209bb2abc479809918f57f7b7b120ccb4db1975b6519f078252fd32",
       "fields": [
         {
           "name": "sourceMode",
@@ -685,10 +685,6 @@
           "javaType": "String"
         },
         {
-          "name": "flavor",
-          "javaType": "String"
-        },
-        {
           "name": "locale",
           "javaType": "String"
         }
@@ -697,7 +693,7 @@
     {
       "className": "MealRecommendationRequestDTO",
       "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/MealRecommendationRequestDTO.java",
-      "sourceHash": "afadd302f02679e4e719f0b0855b847f8083c9cb05d291093b3c4d34a07007c5",
+      "sourceHash": "8138e4c7c2f3b2a8febcc2c406209319bbe1764d54ac684eeeb7fd79d5f943b9",
       "fields": [
         {
           "name": "sourceText",
@@ -724,12 +720,12 @@
           "javaType": "String"
         },
         {
-          "name": "flavor",
+          "name": "locale",
           "javaType": "String"
         },
         {
-          "name": "locale",
-          "javaType": "String"
+          "name": "recentDishTitles",
+          "javaType": "List<String>"
         }
       ]
     },
@@ -767,7 +763,7 @@
     {
       "className": "RecipeDTO",
       "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/RecipeDTO.java",
-      "sourceHash": "e957dc1ab0d0e9c2d2ed8ab478cc49d99e6978a43fa9fcf9976949204fab13f7",
+      "sourceHash": "20d7bc500190141040af9687f36aa9ada96b253d71e3dd0b256f60db2c6f6c32",
       "fields": [
         {
           "name": "id",
@@ -810,7 +806,30 @@
           "javaType": "String"
         },
         {
+          "name": "stepsStatus",
+          "javaType": "String"
+        },
+        {
           "name": "preference",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "RecipeImageResponseDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/RecipeImageResponseDTO.java",
+      "sourceHash": "fb617351a59a8dafd3755bab0684a3277a1c21dba9783e00f10c2156d64aa240",
+      "fields": [
+        {
+          "name": "recipeId",
+          "javaType": "Long"
+        },
+        {
+          "name": "imageUrl",
+          "javaType": "String"
+        },
+        {
+          "name": "imageStatus",
           "javaType": "String"
         }
       ]

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL } from '../app/config/api';
 
 const GENERIC_RESPONSE_MESSAGES = new Set([
   'No message available',

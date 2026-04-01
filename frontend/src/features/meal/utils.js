@@ -21,6 +21,7 @@ export const normalizeRecipe = (recipe = {}, fallbackId = null) => ({
   steps: Array.isArray(recipe.steps) ? recipe.steps : [],
   imageUrl: recipe.imageUrl || '',
   imageStatus: recipe.imageStatus || (recipe.imageUrl ? 'GENERATED' : 'OMITTED'),
+  stepsStatus: recipe.stepsStatus || 'OMITTED',
   preference: recipe.preference ?? null,
 });
 
@@ -33,7 +34,7 @@ export const normalizeRecommendationResponse = (response = {}) => ({
   requestId: response.requestId || `meal-${Date.now()}`,
   sourceText: response.sourceText || '',
   form: response.form || null,
-  provider: response.provider || 'mock',
+  provider: response.provider || null,
   items: normalizeRecipeList(response.items),
   emptyState: typeof response.emptyState === 'object' && response.emptyState !== null
     ? response.emptyState

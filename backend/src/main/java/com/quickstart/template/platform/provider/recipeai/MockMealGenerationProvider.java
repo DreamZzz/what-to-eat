@@ -5,6 +5,7 @@ import com.quickstart.template.contexts.meal.api.dto.RecipeDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeIngredientDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeStepDTO;
 import com.quickstart.template.contexts.meal.application.MealGenerationResult;
+import java.util.function.Consumer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -66,18 +67,17 @@ public class MockMealGenerationProvider implements MealGenerationProvider {
     private String buildTitle(String focus, MealRecommendationRequestDTO request, int index) {
         String[] suffixes = new String[] {"轻盈版", "元气版", "下饭版", "暖胃版", "清爽版", "活力版"};
         String suffix = suffixes[index % suffixes.length];
-        return focus + describeFlavor(request.getFlavor()) + suffix;
+        return focus + suffix;
     }
 
     private String buildSummary(MealRecommendationRequestDTO request, int index) {
         return String.format(
                 Locale.ROOT,
-                "根据%s、%d菜和%d千卡生成的第%d道推荐，适合%s口味。",
+                "根据%s、%d菜和%d千卡生成的第%d道推荐。",
                 request.getSourceText(),
                 request.getDishCount(),
                 request.getTotalCalories(),
-                index + 1,
-                describeFlavor(request.getFlavor())
+                index + 1
         );
     }
 
@@ -119,14 +119,14 @@ public class MockMealGenerationProvider implements MealGenerationProvider {
         return step;
     }
 
-    private String describeFlavor(String flavor) {
-        if (flavor == null) {
-            return "清淡";
+    @Override
+    public void streamRecipeSteps(RecipeDTO recipe, String locale, Consumer<RecipeStepDTO> onStep) {
+        String title = recipe.getTitle() != null ? recipe.getTitle() : "这道菜";
+        List<RecipeStepDTO> steps = buildSteps(title, 0);
+        for (RecipeStepDTO step : steps) {
+            onStep.accept(step);
+            try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
         }
-        return switch (flavor.toUpperCase(Locale.ROOT)) {
-            case "APPETIZING" -> "开胃";
-            case "RICH" -> "开荤";
-            default -> "清淡";
-        };
     }
+
 }

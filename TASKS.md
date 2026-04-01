@@ -2,7 +2,11 @@
 
 ## Active
 
-- 完成 quick-start-end2end-template v1 的模板化落地。
+- 生产验证：手机退出重新登录后，端到端验证 DeepSeek LLM / OSS / Aliyun Speech 三条链路是否正常。
+
+## Blocked
+
+- 短信验证码登录：`APP_AUTH_SMS_PROVIDER=log`，验证码从服务器日志获取（`journalctl -u what-to-eat-backend -f | grep SMS`）。
 
 ## Next
 
@@ -12,7 +16,8 @@
 
 ## Recently Done
 
-- 基于参考仓库复制并清理已验证资产。
-- 重组后端为 `platform + modules` 结构。
-- 重组前端为 `app + features + shared` 结构，并保留兼容入口。
-- 新增根级 bootstrap / env-check / smoke 脚本。
+- 荤素搭配灵感：`pickInspirationBundle` 抽取 1 肉 + 1 素 + 1 随机，dishCount 传参联动 MealFormScreen 初始值。
+- ECS 后端部署：`eat.868299.com`，端口 `8081`，systemd 服务 + Nginx + Let's Encrypt HTTPS，生成 `backend/DEPLOY_ECS.md`。
+- 前端 Remote 模式：`.env.local` 指向 `https://eat.868299.com`。
+- 生产 401 根因诊断：手机持有本地 dev secret 签发的 JWT，生产使用新密钥 → 全部 401 → 灵感兜底 + 菜谱生成失败。LLM/OSS/Speech 均未被调用，auth 层即拦截。
+- 基于参考仓库复制并清理已验证资产；重组后端为 `platform + modules`；重组前端为 `app + features + shared`；新增根级脚本。

@@ -39,6 +39,24 @@ const FALLBACK_KEYWORDS = [
 
 const GENERIC_CUISINE_SUFFIXES = ['菜', '口味', '风味', '做法'];
 
+const MEAT_SIGNALS = ['荤菜', '肉', '鱼', '虾', '蟹', '禽', '猪', '牛', '羊', '鸡', '鸭', '鹅', '海鲜', '贝', '蛤', '螺', '排骨', '五花', '里脊', '腱', '腊肉', '培根'];
+const VEG_SIGNALS = ['素菜', '素', '蔬菜', '豆腐', '白菜', '菠菜', '蘑菇', '木耳', '豆芽', '茄子', '黄瓜', '冬瓜', '苦瓜', '南瓜', '芋', '薯', '笋', '藕', '莲', '芹', '韭', '苋', '油麦'];
+
+const classifyDishType = (item) => {
+  const tags = [...(item.featureTags || []), ...(item.ingredientTags || [])];
+  if (tags.includes('荤菜') || item.category === '荤菜' || item.subcategory === '荤菜') {
+    return 'meat';
+  }
+  // 蛋豆（鸡蛋、豆腐、豆制品）归入素菜池
+  if (tags.includes('素菜') || item.category === '素菜' || item.category === '蛋豆' || item.subcategory === '素菜') {
+    return 'veg';
+  }
+  const searchText = buildCatalogSearchText(item);
+  if (MEAT_SIGNALS.some((k) => searchText.includes(k))) return 'meat';
+  if (VEG_SIGNALS.some((k) => searchText.includes(k))) return 'veg';
+  return 'other';
+};
+
 const normalizeTagList = (value) => {
   if (Array.isArray(value)) {
     return value
@@ -387,6 +405,82 @@ const buildFallbackSuggestion = (sourceText, mealMoment) => {
     matchedCatalog: false,
     exactSourceMatch: false,
     matchedKeywords: [],
+  };
+};
+
+export const pickInspirationBundle = ({
+  catalogItems = [],
+  recentHistory = [],
+  datasetVersion = MEAL_CATALOG_FALLBACK_VERSION,
+} = {}) => {
+  const normalizedItems = Array.isArray(catalogItems) ? catalogItems : [];
+
+  if (normalizedItems.length === 0) {
+    return {
+      items: [],
+      sourceText: '番茄炒蛋、红烧肉、清炒青菜',
+      dishCount: 3,
+      datasetVersion: MEAL_CATALOG_FALLBACK_VERSION,
+      matchedCatalog: false,
+    };
+  }
+
+  const recentCodes = new Set(
+    recentHistory
+      .map((item) => item.code || String(item.id || ''))
+      .filter(Boolean)
+      .slice(0, MEAL_CATALOG_HISTORY_LIMIT)
+  );
+
+  // 荤菜池：猪/牛/羊/禽/海鲜水产
+  const meatPool = normalizedItems.filter((item) => classifyDishType(item) === 'meat');
+  // 素菜池：蔬菜、豆制品、鸡蛋、凉菜
+  const vegPool = normalizedItems.filter((item) => classifyDishType(item) === 'veg');
+
+  // 从候选池随机抽取一道菜，优先排除最近出现过的；如果全部都是近期菜则从全池随机
+  const pickRandom = (pool, excludeCodes) => {
+    const fresh = pool.filter(
+      (item) => !excludeCodes.has(item.code) && !recentCodes.has(item.code)
+    );
+    const candidates = fresh.length > 0
+      ? fresh
+      : pool.filter((item) => !excludeCodes.has(item.code));
+    if (candidates.length === 0) return null;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  };
+
+  const usedCodes = new Set();
+
+  // 第一道：荤菜
+  const meatPick = pickRandom(meatPool, usedCodes);
+  if (meatPick) usedCodes.add(meatPick.code);
+
+  // 第二道：素菜
+  const vegPick = pickRandom(vegPool, usedCodes);
+  if (vegPick) usedCodes.add(vegPick.code);
+
+  // 第三道：全品类随机
+  const thirdPick = pickRandom(normalizedItems, usedCodes);
+  if (thirdPick) usedCodes.add(thirdPick.code);
+
+  const picks = [meatPick, vegPick, thirdPick].filter(Boolean);
+
+  // 如果某个分类池为空，用全池补足到 3 道
+  for (const item of normalizedItems) {
+    if (picks.length >= 3) break;
+    if (!usedCodes.has(item.code)) {
+      picks.push(item);
+      usedCodes.add(item.code);
+    }
+  }
+
+  const selectedItems = picks.slice(0, 3);
+  return {
+    items: selectedItems,
+    sourceText: selectedItems.map((i) => i.name).join('、'),
+    dishCount: selectedItems.length,
+    datasetVersion,
+    matchedCatalog: true,
   };
 };
 

@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Image,
   StyleSheet,
   Text,
@@ -10,6 +12,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import { buildImageUrl } from '../../../utils/imageUrl';
 import { buildIngredientSummary } from '../utils';
+import { mealAPI } from '../api';
 
 const preferenceMeta = {
   LIKE: {
@@ -24,6 +27,40 @@ const preferenceMeta = {
   },
 };
 
+const ImagePlaceholder = ({ imageStatus }) => {
+  const pulseAnim = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    if (imageStatus !== 'PENDING') return undefined;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, easing: Easing.ease, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.4, duration: 800, easing: Easing.ease, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [imageStatus, pulseAnim]);
+
+  if (imageStatus === 'PENDING') {
+    return (
+      <Animated.View style={[styles.placeholder, { opacity: pulseAnim }]}>
+        <ActivityIndicator size="small" color="#C97C5D" />
+        <Text style={styles.placeholderText}>加载图片中…</Text>
+      </Animated.View>
+    );
+  }
+
+  return (
+    <View style={styles.placeholder}>
+      <Icon name="restaurant-outline" size={28} color="#C97C5D" />
+      <Text style={styles.placeholderText}>
+        {imageStatus === 'FAILED' ? '图片加载失败' : '暂无图片'}
+      </Text>
+    </View>
+  );
+};
+
 const RecipeCard = ({
   recipe,
   compact = false,
@@ -36,18 +73,43 @@ const RecipeCard = ({
   const preferenceInfo = currentPreference ? preferenceMeta[currentPreference] : null;
   const { ingredientText, seasoningText } = buildIngredientSummary(recipe);
 
+  // Phase-2 lazy steps loading state
+  const [localSteps, setLocalSteps] = useState(recipe.steps || []);
+  const [stepsLoading, setStepsLoading] = useState(false);
+  const [stepsError, setStepsError] = useState(false);
+  const isPendingSteps =
+    recipe.stepsStatus === 'PENDING' && localSteps.length === 0 && !stepsLoading && !stepsError;
+
+  const handleLoadSteps = async () => {
+    if (!recipe.id || stepsLoading) return;
+    setStepsLoading(true);
+    setStepsError(false);
+    const accumulating = [];
+    try {
+      await mealAPI.streamRecipeSteps(recipe.id, {
+        onStep: (step) => {
+          accumulating.push(step);
+          setLocalSteps([...accumulating]);
+        },
+        onComplete: () => setStepsLoading(false),
+        onError: () => {
+          setStepsLoading(false);
+          setStepsError(true);
+        },
+      });
+    } catch {
+      setStepsLoading(false);
+      setStepsError(true);
+    }
+  };
+
   return (
     <View style={[styles.card, compact && styles.compactCard]}>
       <View style={styles.media}>
         {imageUri ? (
           <Image source={{ uri: imageUri }} style={styles.image} />
         ) : (
-          <View style={styles.placeholder}>
-            <Icon name="restaurant-outline" size={28} color="#C97C5D" />
-            <Text style={styles.placeholderText}>
-              {recipe.imageStatus === 'FAILED' ? '图片生成失败' : '等待图片'}
-            </Text>
-          </View>
+          <ImagePlaceholder imageStatus={recipe.imageStatus} />
         )}
         <View style={styles.mediaOverlay}>
           <Text style={styles.calorieTag}>
@@ -87,12 +149,32 @@ const RecipeCard = ({
 
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>做法</Text>
-              {recipe.steps.length > 0 ? (
-                recipe.steps.slice(0, 4).map((step, index) => (
-                  <Text key={`${recipe.id || recipe.title}-step-${index}`} style={styles.stepLine}>
-                    {`${step.index || index + 1}. ${step.content || step}`}
-                  </Text>
-                ))
+              {localSteps.length > 0 ? (
+                <>
+                  {localSteps.map((step, index) => (
+                    <Text key={`${recipe.id || recipe.title}-step-${index}`} style={styles.stepLine}>
+                      {`${step.index || index + 1}. ${step.content || step}`}
+                    </Text>
+                  ))}
+                  {stepsLoading ? (
+                    <ActivityIndicator size="small" color="#C97C5D" style={styles.stepsLoader} />
+                  ) : null}
+                </>
+              ) : stepsLoading ? (
+                <View style={styles.stepsLoadingRow}>
+                  <ActivityIndicator size="small" color="#C97C5D" />
+                  <Text style={styles.stepsLoadingText}>正在加载做法…</Text>
+                </View>
+              ) : isPendingSteps ? (
+                <TouchableOpacity onPress={handleLoadSteps} style={styles.loadStepsButton}>
+                  <Icon name="book-outline" size={14} color="#B85C38" />
+                  <Text style={styles.loadStepsText}>查看做法</Text>
+                </TouchableOpacity>
+              ) : stepsError ? (
+                <TouchableOpacity onPress={handleLoadSteps} style={styles.loadStepsButton}>
+                  <Icon name="refresh-outline" size={14} color="#B85C38" />
+                  <Text style={styles.loadStepsText}>加载失败，点击重试</Text>
+                </TouchableOpacity>
               ) : (
                 <Text style={styles.sectionValue}>稍后补充</Text>
               )}
@@ -229,6 +311,34 @@ const styles = StyleSheet.create({
     color: '#3D2E24',
     fontSize: 14,
     lineHeight: 20,
+  },
+  stepsLoader: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  stepsLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stepsLoadingText: {
+    color: '#9A7A67',
+    fontSize: 13,
+  },
+  loadStepsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFF4EB',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  loadStepsText: {
+    color: '#B85C38',
+    fontSize: 13,
+    fontWeight: '700',
   },
   actions: {
     flexDirection: 'row',

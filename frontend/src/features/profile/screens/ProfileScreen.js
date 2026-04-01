@@ -1,7 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import React from 'react';
 import {
-  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,84 +7,66 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { useAuth } from '../../../app/providers/AuthContext';
-import { mealAPI } from '../../meal/api';
-import { DEFAULT_PROFILE_PAGE_SIZE } from '../../meal/constants';
-import { normalizeFavoriteResponse } from '../../meal/utils';
 import RecipeCard from '../../meal/components/RecipeCard';
+import ProfileSkeleton from '../components/ProfileSkeleton';
+import { useProfileViewModel } from '../viewModels/useProfileViewModel';
 
 const ProfileScreen = () => {
-  const { user, logout } = useAuth();
-  const [favorites, setFavorites] = useState([]);
-  const [loadingFavorites, setLoadingFavorites] = useState(true);
-  const [error, setError] = useState('');
+  const vm = useProfileViewModel();
 
-  const loadFavorites = useCallback(async () => {
-    try {
-      setLoadingFavorites(true);
-      setError('');
-      const response = await mealAPI.getFavorites(0, DEFAULT_PROFILE_PAGE_SIZE);
-      const normalized = normalizeFavoriteResponse(response.data || {});
-      setFavorites(normalized.items);
-    } catch (err) {
-      console.error('Failed to load favorites:', err);
-      setFavorites([]);
-      setError('喜欢的菜谱暂时加载失败');
-    } finally {
-      setLoadingFavorites(false);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadFavorites();
-    }, [loadFavorites])
-  );
-
-  const displayName = user?.displayName || user?.username || 'What To Eat 用户';
+  if (vm.loadingFavorites) {
+    return (
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <ProfileSkeleton />
+      </ScrollView>
+    );
+  }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.header}>
         <View style={styles.badge}>
           <Icon name="person-circle-outline" size={18} color="#B85C38" />
           <Text style={styles.badgeText}>个人中心</Text>
         </View>
-        <Text style={styles.title}>{displayName}</Text>
+        <Text style={styles.title}>{vm.displayName}</Text>
         <Text style={styles.subtitle}>
           这里会保留你喜欢的菜谱，回头就能快速复做。
         </Text>
 
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{favorites.length}</Text>
+            <Text style={styles.statValue}>{vm.favorites.length}</Text>
             <Text style={styles.statLabel}>喜欢的菜谱</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{user?.username ? '@' + user.username : '--'}</Text>
+            <Text style={styles.statValue}>{vm.usernameDisplay}</Text>
             <Text style={styles.statLabel}>当前账号</Text>
           </View>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+        <TouchableOpacity style={styles.logoutButton} onPress={vm.logout}>
           <Text style={styles.logoutText}>退出登录</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>喜欢的菜谱</Text>
-        {loadingFavorites ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#B85C38" />
-            <Text style={styles.loadingText}>正在加载喜欢的菜谱...</Text>
-          </View>
-        ) : error ? (
+        {vm.error ? (
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyTitle}>{error}</Text>
+            <Text style={styles.emptyTitle}>{vm.error}</Text>
             <Text style={styles.emptyText}>下拉或者重新进入页面会再次尝试加载。</Text>
           </View>
-        ) : favorites.length > 0 ? (
-          favorites.map((recipe) => (
+        ) : vm.favorites.length > 0 ? (
+          vm.favorites.map((recipe) => (
             <RecipeCard key={String(recipe.id || recipe.title)} recipe={recipe} compact />
           ))
         ) : (
@@ -187,19 +167,6 @@ const styles = StyleSheet.create({
     color: '#2B2118',
     fontSize: 18,
     fontWeight: '800',
-  },
-  loadingBox: {
-    borderRadius: 22,
-    backgroundColor: '#FFFDF9',
-    borderWidth: 1,
-    borderColor: '#F0D8C4',
-    padding: 20,
-    alignItems: 'center',
-    gap: 8,
-  },
-  loadingText: {
-    color: '#6E5849',
-    fontSize: 14,
   },
   emptyBox: {
     borderRadius: 22,

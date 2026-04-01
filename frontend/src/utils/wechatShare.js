@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { init, isInstalled, SCENE, shareText } from './wechatNative';
-import runtimeConfig from '../config/runtime';
+import runtimeConfig from '../app/config/runtime';
 
 const createWechatShareError = (code, message, cause) => {
   const error = new Error(message);

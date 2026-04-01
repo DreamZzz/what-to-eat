@@ -18,8 +18,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.ResourceAccessException;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,6 +34,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import java.util.regex.Pattern;
 
@@ -37,8 +49,13 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
     private static final int DEFAULT_FALLBACK_TIMEOUT_MS = 25_000;
     private static final Pattern TRAILING_BROAD_INTENT_PUNCTUATION = Pattern.compile("[\\p{Punct}\\p{IsPunctuation}。！？、，；：…·\\s]+$");
 
+    /** Max concurrent LLM calls during streaming — balances throughput vs rate-limit risk. */
+    private static final int STREAMING_CONCURRENCY = 2;
+
     private final RestClient primaryRestClient;
     private final RestClient fallbackRestClient;
+    /** Dedicated client for per-dish streaming calls: longer timeout than the regular clients. */
+    private final RestClient streamingRestClient;
     private final ObjectMapper objectMapper;
     private final String apiKey;
     private final String chatModel;
@@ -52,7 +69,8 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
             @Value("${app.meal.openai.chat-model:gpt-4o-mini}") String chatModel,
             @Value("${app.meal.openai.fallback-chat-model:}") String fallbackChatModel,
             @Value("${app.meal.openai.timeout-ms:20000}") long timeoutMs,
-            @Value("${app.meal.openai.fallback-timeout-ms:25000}") long fallbackTimeoutMs) {
+            @Value("${app.meal.openai.fallback-timeout-ms:25000}") long fallbackTimeoutMs,
+            @Value("${app.meal.openai.streaming-timeout-ms:50000}") long streamingTimeoutMs) {
         this.objectMapper = objectMapper;
         this.apiKey = apiKey;
         this.chatModel = chatModel;
@@ -60,6 +78,8 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
         this.fallbackChatModel = resolveFallbackChatModel(baseUrl, chatModel, fallbackChatModel);
         this.primaryRestClient = buildRestClient(baseUrl, apiKey, timeoutMs);
         this.fallbackRestClient = buildRestClient(baseUrl, apiKey, Math.max(timeoutMs, fallbackTimeoutMs));
+        this.streamingRestClient = buildRestClient(baseUrl, apiKey,
+                Math.max(Math.max(timeoutMs, fallbackTimeoutMs), streamingTimeoutMs));
     }
 
     @Override
@@ -80,6 +100,81 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
         } catch (Exception exception) {
             log.error("OpenAI-compatible meal generation failed", exception);
             throw new MealGenerationException("菜谱生成失败，请稍后重试", false, exception);
+        }
+    }
+
+    /**
+     * Streaming variant: for 2+ dishes always uses parallel per-dish generation so that
+     * each recipe is emitted via {@code onRecipe} as soon as it is ready (~15s each),
+     * rather than waiting for all dishes to complete in a single call (~60s+).
+     */
+    @Override
+    public void generateStream(MealRecommendationRequestDTO request, Consumer<RecipeDTO> onRecipe) {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new MealGenerationException("菜谱生成服务未配置 API key", true);
+        }
+        try {
+            if (request.getDishCount() != null && request.getDishCount() > 1) {
+                streamMultiDishSequential(request, onRecipe);
+            } else {
+                generate(request).getRecipes().forEach(onRecipe);
+            }
+        } catch (MealGenerationException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("OpenAI-compatible meal generation stream failed", e);
+            throw new MealGenerationException("菜谱生成失败，请稍后重试", false, e);
+        }
+    }
+
+    private void streamMultiDishSequential(MealRecommendationRequestDTO request, Consumer<RecipeDTO> onRecipe) throws Exception {
+        // Bounded-concurrency streaming: at most STREAMING_CONCURRENCY calls run at the
+        // same time. This gives ~2× throughput vs fully sequential while keeping rate-limit
+        // risk low. Each call uses streamingRestClient (50 s timeout) so even slow providers
+        // rarely time out on individual dishes.
+        ModelExecutionPlan plan = resolveStreamingModelExecutionPlan();
+        int targetCount = request.getDishCount();
+        // For large menus (> 3 dishes) the ingredient-diversity constraint filter may drop
+        // 1-2 cards (parallel generation, cards don't know each other's ingredients).
+        // Over-request by a small buffer so filtered slots can be covered by extras.
+        int bufferedCount = targetCount > 3 ? targetCount + Math.min(2, targetCount - 3) : targetCount;
+        List<String> titles = selectRecipeTitles(plan.client(), plan.modelName(), request, bufferedCount);
+        if (titles.isEmpty()) {
+            return;
+        }
+        log.info("Streaming {} recipe cards (phase-1, target={}, buffered={}, concurrency={}) with model {}",
+                titles.size(), targetCount, bufferedCount, STREAMING_CONCURRENCY, plan.modelName());
+
+        Semaphore semaphore = new Semaphore(STREAMING_CONCURRENCY);
+        List<CompletableFuture<Void>> futures = IntStream.range(0, titles.size())
+                .mapToObj(i -> CompletableFuture.runAsync(() -> {
+                    try {
+                        semaphore.acquire();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                    try {
+                        RecipeDTO recipe = generateCardDetailSafely(
+                                plan.client(), plan.modelName(), request, titles, i);
+                        if (recipe != null) {
+                            onRecipe.accept(recipe);
+                        }
+                    } finally {
+                        semaphore.release();
+                    }
+                }))
+                .toList();
+
+        try {
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(170, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof MealGenerationException mge) throw mge;
+            throw new MealGenerationException("菜谱生成失败，请稍后重试", false, e);
+        } catch (java.util.concurrent.TimeoutException e) {
+            log.warn("Streaming timed out after 170 s with {} titles — partial results emitted", titles.size());
+            futures.forEach(f -> f.cancel(true));
         }
     }
 
@@ -163,12 +258,48 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
         return new ModelExecutionPlan(primaryRestClient, chatModel);
     }
 
-    private List<String> selectRecipeTitles(RestClient client, String modelName, MealRecommendationRequestDTO request) throws Exception {
+    /**
+     * For streaming per-dish calls, always use {@code streamingRestClient} (longer timeout)
+     * and prefer the fast model to avoid reasoning-model latency under concurrent load.
+     */
+    private ModelExecutionPlan resolveStreamingModelExecutionPlan() {
+        String model = (fallbackChatModel != null && !fallbackChatModel.isBlank()
+                && !fallbackChatModel.equals(chatModel))
+                ? fallbackChatModel
+                : chatModel;
+        return new ModelExecutionPlan(streamingRestClient, model);
+    }
+
+    /**
+     * Selects recipe titles for a meal, either from the user's explicit dish list or via LLM.
+     *
+     * @param targetCount number of titles to request; may exceed {@code request.getDishCount()}
+     *                    when the caller adds a buffer to compensate for potential filter drops
+     */
+    private List<String> selectRecipeTitles(
+            RestClient client,
+            String modelName,
+            MealRecommendationRequestDTO request,
+            int targetCount
+    ) throws Exception {
+        String sourceText = request.getSourceText();
+        int dishCount = request.getDishCount() != null ? request.getDishCount() : 1;
+
+        // Case 1: user listed EXACTLY dishCount dish names → use verbatim, skip LLM.
+        List<String> explicit = parseExplicitDishNames(sourceText, dishCount);
+        if (!explicit.isEmpty()) {
+            log.info("Title selection skipped: using explicit dish names from sourceText: {}", explicit);
+            return explicit;
+        }
+
+        // Case 2: user listed 2–(dishCount-1) dish names → those are required; LLM fills the rest.
+        List<String> partialRequired = parsePartialExplicitDishNames(sourceText, dishCount);
+
         JsonNode response = requestChatCompletion(
                 client,
                 modelName,
-                buildTitleSelectionSystemPrompt(),
-                buildTitleSelectionUserPrompt(request)
+                MealGenerationPrompts.titleSelectionSystemPrompt(),
+                MealGenerationPrompts.titleSelectionUserPrompt(request, targetCount, partialRequired)
         );
         JsonNode payload = objectMapper.readTree(stripCodeFence(extractAssistantContent(response)));
         JsonNode titlesNode = payload.path("titles");
@@ -182,12 +313,41 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
             if (!title.isBlank()) {
                 uniqueTitles.add(title);
             }
-            if (uniqueTitles.size() >= request.getDishCount()) {
+            if (uniqueTitles.size() >= targetCount) {
                 break;
             }
         }
 
+        // Determine all dishes the user explicitly requested (must appear in the final list).
+        // Case 2: partial list of dish names  Case 3: single specific dish name
+        List<String> allRequired;
+        if (!partialRequired.isEmpty()) {
+            allRequired = partialRequired;
+        } else if (dishCount > 1 && sourceText != null && !MealGenerationPrompts.isBroadFlavorIntent(sourceText)) {
+            allRequired = List.of(sourceText.trim());
+        } else {
+            allRequired = List.of();
+        }
+
+        // Force-insert any required dishes the LLM omitted (placed at the front).
+        List<String> missing = allRequired.stream().filter(r -> !uniqueTitles.contains(r)).toList();
+        if (!missing.isEmpty()) {
+            log.info("Title selection: LLM omitted required dishes {}, force-inserting", missing);
+            List<String> reordered = new ArrayList<>(missing);
+            for (String t : uniqueTitles) {
+                if (!missing.contains(t) && reordered.size() < targetCount) {
+                    reordered.add(t);
+                }
+            }
+            return reordered;
+        }
+
         return new ArrayList<>(uniqueTitles);
+    }
+
+    /** Overload for callers that don't need title buffering (uses dishCount as-is). */
+    private List<String> selectRecipeTitles(RestClient client, String modelName, MealRecommendationRequestDTO request) throws Exception {
+        return selectRecipeTitles(client, modelName, request, request.getDishCount() != null ? request.getDishCount() : 1);
     }
 
     private RecipeDTO generateRecipeDetailSafely(
@@ -221,8 +381,8 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
         JsonNode response = requestChatCompletion(
                 client,
                 modelName,
-                buildRecipeDetailSystemPrompt(),
-                buildRecipeDetailUserPrompt(request, recipeTitles, index)
+                MealGenerationPrompts.detailSystemPrompt(),
+                MealGenerationPrompts.recipeDetailUserPrompt(request, recipeTitles, index)
         );
         List<RecipeDTO> recipes = parseRecipes(extractAssistantContent(response));
         if (recipes.isEmpty()) {
@@ -231,12 +391,174 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
         return recipes.get(0);
     }
 
+    /**
+     * Phase-1 card-only generation for the streaming path (no steps).
+     * Returns a RecipeDTO with {@code stepsStatus="PENDING"} so the frontend knows
+     * to load steps via Phase-2 when the user taps "查看做法".
+     */
+    private RecipeDTO generateCardDetailSafely(
+            RestClient client,
+            String modelName,
+            MealRecommendationRequestDTO request,
+            List<String> recipeTitles,
+            int index
+    ) {
+        try {
+            return generateCardDetail(client, modelName, request, recipeTitles, index);
+        } catch (Exception exception) {
+            log.warn(
+                    "Card detail generation failed for sourceText={} title={} at index={}",
+                    request.getSourceText(),
+                    recipeTitles.get(index),
+                    index,
+                    exception
+            );
+            return null;
+        }
+    }
+
+    private RecipeDTO generateCardDetail(
+            RestClient client,
+            String modelName,
+            MealRecommendationRequestDTO request,
+            List<String> recipeTitles,
+            int index
+    ) throws Exception {
+        String systemPrompt = MealGenerationPrompts.cardDetailSystemPrompt();
+        JsonNode response = requestChatCompletion(
+                client,
+                modelName,
+                systemPrompt,
+                MealGenerationPrompts.recipeDetailUserPrompt(request, recipeTitles, index)
+        );
+        List<RecipeDTO> recipes = parseRecipes(extractAssistantContent(response));
+        if (recipes.isEmpty()) {
+            throw new MealGenerationException("菜谱生成服务未返回有效菜谱", false);
+        }
+        RecipeDTO card = recipes.get(0);
+        String expectedTitle = recipeTitles.get(index);
+
+        if (!expectedTitle.equals(card.getTitle())) {
+            String wrongTitle = card.getTitle();
+            log.warn("Card title mismatch: expected='{}' got='{}', retrying with targeted prompt",
+                    expectedTitle, wrongTitle);
+            // Retry once with a stripped-down prompt that anchors to exactly this dish.
+            // Pass the wrong title so the model knows explicitly what NOT to generate.
+            try {
+                JsonNode retryResponse = requestChatCompletion(
+                        client,
+                        modelName,
+                        systemPrompt,
+                        MealGenerationPrompts.cardDetailRetryUserPrompt(request, recipeTitles, index, wrongTitle)
+                );
+                List<RecipeDTO> retryRecipes = parseRecipes(extractAssistantContent(retryResponse));
+                if (!retryRecipes.isEmpty()) {
+                    card = retryRecipes.get(0);
+                }
+            } catch (Exception e) {
+                log.warn("Retry card generation failed for title='{}', will fall back to title override",
+                        expectedTitle, e);
+            }
+            if (!expectedTitle.equals(card.getTitle())) {
+                log.warn("Card title mismatch after retry: expected='{}' got='{}', overriding title",
+                        expectedTitle, card.getTitle());
+                card.setTitle(expectedTitle);
+            }
+        }
+
+        // Mark steps as pending — Phase-2 will generate them on demand
+        card.setStepsStatus("PENDING");
+        card.setSteps(new ArrayList<>());
+        return card;
+    }
+
+    /**
+     * Phase-2: streams cooking steps for a single recipe using the LLM SSE API.
+     * Tokens are accumulated in a {@link StepStreamParser} which calls {@code onStep}
+     * for each step object the moment its closing brace is received.
+     */
+    @Override
+    public void streamRecipeSteps(RecipeDTO recipe, String locale, Consumer<RecipeStepDTO> onStep) {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new MealGenerationException("菜谱生成服务未配置 API key", true);
+        }
+
+        String modelName = resolveStreamingModelExecutionPlan().modelName();
+        String systemPrompt = MealGenerationPrompts.stepsSystemPrompt();
+        String userPrompt = MealGenerationPrompts.stepsUserPrompt(recipe, locale);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("model", modelName);
+        payload.put("messages", List.of(
+                Map.of("role", "system", "content", systemPrompt),
+                Map.of("role", "user", "content", userPrompt)
+        ));
+        payload.put("stream", true);
+        if (!modelName.toLowerCase(Locale.ROOT).contains("reasoner")) {
+            payload.put("temperature", 0.7);
+        }
+
+        String requestBody;
+        try {
+            requestBody = objectMapper.writeValueAsString(payload);
+        } catch (Exception e) {
+            throw new MealGenerationException("构建步骤生成请求失败", false, e);
+        }
+
+        String fullUrl = baseUrl + resolveApiPath("/chat/completions");
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(fullUrl))
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                .timeout(Duration.ofSeconds(60))
+                .build();
+
+        StepStreamParser parser = new StepStreamParser();
+        try {
+            HttpClient httpClient = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .build();
+            httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofLines())
+                    .body()
+                    .forEach(line -> {
+                        if (!line.startsWith("data: ")) return;
+                        String data = line.substring(6).trim();
+                        if ("[DONE]".equals(data)) return;
+                        try {
+                            JsonNode node = objectMapper.readTree(data);
+                            String token = node.at("/choices/0/delta/content").asText("");
+                            if (token.isEmpty()) return;
+                            for (String stepJson : parser.append(token)) {
+                                try {
+                                    JsonNode stepNode = objectMapper.readTree(stepJson);
+                                    RecipeStepDTO step = new RecipeStepDTO();
+                                    step.setIndex(stepNode.path("index").asInt(0));
+                                    step.setContent(stepNode.path("content").asText(""));
+                                    onStep.accept(step);
+                                } catch (Exception ex) {
+                                    log.warn("Failed to parse streamed step JSON: {}", stepJson, ex);
+                                }
+                            }
+                        } catch (Exception ex) {
+                            // Skip malformed SSE events
+                        }
+                    });
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new MealGenerationException("步骤生成被中断", false, e);
+        } catch (Exception e) {
+            log.error("Step streaming failed for recipe={}", recipe.getTitle(), e);
+            throw new MealGenerationException("步骤生成失败，请稍后重试", false, e);
+        }
+    }
+
     private MealGenerationResult generateWithModel(RestClient client, String modelName, MealRecommendationRequestDTO request) throws Exception {
         JsonNode response = requestChatCompletion(
                 client,
                 modelName,
-                buildSystemPrompt(),
-                buildUserPrompt(request)
+                MealGenerationPrompts.systemPrompt(),
+                MealGenerationPrompts.userPrompt(request)
         );
         String content = extractAssistantContent(response);
         List<RecipeDTO> recipes = parseRecipes(content);
@@ -261,112 +583,12 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
         ));
         payload.put("response_format", Map.of("type", "json_object"));
         if (!modelName.toLowerCase(Locale.ROOT).contains("reasoner")) {
-            payload.put("temperature", 0.7);
+            // Randomize temperature per request (0.70–0.95) to break DeepSeek KV-cache
+            // hits that cause the same dishes to appear across sessions.
+            double temperature = 0.70 + Math.random() * 0.25;
+            payload.put("temperature", temperature);
         }
         return payload;
-    }
-
-    private String buildSystemPrompt() {
-        return """
-                你是一个中文家常菜谱生成器。
-                请只返回 JSON，不要输出 markdown 或额外解释。
-                JSON 结构必须是：
-                {
-                  "recipes": [
-                    {
-                      "title": "菜名",
-                      "summary": "一句话介绍",
-                      "estimatedCalories": 420,
-                      "ingredients": [{"name": "食材", "amount": "100g"}],
-                      "seasonings": [{"name": "佐料", "amount": "适量"}],
-                      "steps": [{"index": 1, "content": "步骤"}]
-                    }
-                  ]
-                }
-                """;
-    }
-
-    private String buildTitleSelectionSystemPrompt() {
-        return """
-                你是一个中文菜谱推荐助手。
-                请只返回 JSON，不要输出 markdown 或额外解释。
-                JSON 结构必须是：
-                {
-                  "titles": ["菜名1", "菜名2"]
-                }
-                要求：
-                1. titles 必须是不同的、适合家常烹饪的中文菜名。
-                2. 不要返回主食、饮品或泛泛类别词。
-                3. 数量必须严格等于用户要求的道数。
-                """;
-    }
-
-    private String buildRecipeDetailSystemPrompt() {
-        return """
-                你是一个中文家常菜谱生成器。
-                请只返回 JSON，不要输出 markdown 或额外解释。
-                JSON 结构必须是：
-                {
-                  "recipes": [
-                    {
-                      "title": "菜名",
-                      "summary": "一句话介绍",
-                      "estimatedCalories": 420,
-                      "ingredients": [{"name": "食材", "amount": "100g"}],
-                      "seasonings": [{"name": "佐料", "amount": "适量"}],
-                      "steps": [{"index": 1, "content": "步骤"}]
-                    }
-                  ]
-                }
-                要求：
-                1. recipes 数组只能有 1 项。
-                2. title 必须与用户指定的菜名一致。
-                """;
-    }
-
-    private String buildUserPrompt(MealRecommendationRequestDTO request) {
-        return String.format(
-                Locale.ROOT,
-                "根据输入文本“%s”，生成%d道菜谱。总热量控制在%d千卡以内，主食=%s，口味=%s，语言=%s。",
-                request.getSourceText(),
-                request.getDishCount(),
-                request.getTotalCalories(),
-                request.getStaple(),
-                request.getFlavor(),
-                request.getLocale() == null ? "zh-CN" : request.getLocale()
-        );
-    }
-
-    private String buildTitleSelectionUserPrompt(MealRecommendationRequestDTO request) {
-        return String.format(
-                Locale.ROOT,
-                "根据输入文本“%s”，推荐%d道不同的中文家常菜名。总热量控制在%d千卡以内，主食=%s，口味=%s，语言=%s。只返回菜名数组，不要返回做法、食材或解释。",
-                request.getSourceText(),
-                request.getDishCount(),
-                request.getTotalCalories(),
-                request.getStaple(),
-                request.getFlavor(),
-                request.getLocale() == null ? "zh-CN" : request.getLocale()
-        );
-    }
-
-    private String buildRecipeDetailUserPrompt(MealRecommendationRequestDTO request, List<String> recipeTitles, int index) {
-        int requestedDishCount = recipeTitles.isEmpty() ? 1 : recipeTitles.size();
-        int perDishCalories = request.getTotalCalories() == null || request.getTotalCalories() <= 0
-                ? 0
-                : Math.max(1, request.getTotalCalories() / requestedDishCount);
-        return String.format(
-                Locale.ROOT,
-                "输入方向是“%s”。本次菜单共%d道菜，第%d道菜固定为“%s”。本菜建议热量控制在%d千卡以内，主食=%s，口味=%s，语言=%s。请只生成这一道菜的详细菜谱，并保证 title 与指定菜名完全一致。",
-                request.getSourceText(),
-                requestedDishCount,
-                index + 1,
-                recipeTitles.get(index),
-                perDishCalories,
-                request.getStaple(),
-                request.getFlavor(),
-                request.getLocale() == null ? "zh-CN" : request.getLocale()
-        );
     }
 
     private String extractAssistantContent(JsonNode response) {
@@ -511,9 +733,72 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
     }
 
     private boolean shouldSplitMultiDishGeneration(MealRecommendationRequestDTO request) {
+        // Only split for very large batches (6+ dishes). For 2-5 dishes a single LLM
+        // call is more reliable: concurrent parallel calls share the same API key and
+        // are frequently rate-limited or timed out by the provider, causing all detail
+        // calls to fail simultaneously and producing an empty result.
         return request != null
                 && request.getDishCount() != null
-                && request.getDishCount() > 1;
+                && request.getDishCount() > 5;
+    }
+
+    /**
+     * Detects whether {@code sourceText} is an explicit enumeration of dish names whose
+     * count exactly matches {@code requestedCount}.
+     *
+     * <p>Example: {@code "蒸水蛋、菌菇豆腐汤、三鲜汤"} with requestedCount=3 → returns
+     * {@code ["蒸水蛋", "菌菇豆腐汤", "三鲜汤"]}.
+     *
+     * <p>Returns an empty list when the text looks like a free-form direction (e.g.
+     * "想吃点清淡的" or "番茄牛腩") rather than a dish-name list.
+     */
+    static List<String> parseExplicitDishNames(String sourceText, Integer requestedCount) {
+        if (sourceText == null || requestedCount == null || requestedCount <= 1) {
+            return List.of();
+        }
+        // Split on common Chinese/English enumeration separators
+        String[] parts = sourceText.split("[、，,；;]");
+        if (parts.length != requestedCount) {
+            return List.of();
+        }
+        List<String> names = Arrays.stream(parts)
+                .map(String::trim)
+                .toList();
+        // Each segment must look like a dish name: 2–15 chars, no sentence starters
+        boolean allLookLikeDishNames = names.stream().allMatch(s ->
+                s.length() >= 2 && s.length() <= 15 && !s.isEmpty()
+                        && !s.startsWith("我") && !s.startsWith("想") && !s.startsWith("不")
+                        && !s.startsWith("要") && !s.startsWith("吃") && !s.startsWith("做")
+        );
+        return allLookLikeDishNames ? names : List.of();
+    }
+
+    /**
+     * Detects a <em>partial</em> explicit dish list: the user named 2+ specific dishes but
+     * fewer than {@code requestedCount}, expecting the remainder to be auto-filled.
+     *
+     * <p>Example: {@code "番茄炒蛋、红烧肉"} with requestedCount=5
+     * → {@code ["番茄炒蛋", "红烧肉"]} (2 required, 3 auto-filled by the LLM).
+     *
+     * <p>Returns an empty list when segments don't look like dish names, or when the
+     * segment count equals requestedCount (handled by {@link #parseExplicitDishNames}).
+     */
+    static List<String> parsePartialExplicitDishNames(String sourceText, Integer requestedCount) {
+        if (sourceText == null || requestedCount == null || requestedCount <= 2) {
+            return List.of();
+        }
+        String[] parts = sourceText.split("[、，,；;]");
+        // "Partial" = 2+ segments, strictly fewer than the requested count
+        if (parts.length < 2 || parts.length >= requestedCount) {
+            return List.of();
+        }
+        List<String> names = Arrays.stream(parts).map(String::trim).toList();
+        boolean allLookLikeDishNames = names.stream().allMatch(s ->
+                s.length() >= 2 && s.length() <= 15 && !s.isEmpty()
+                        && !s.startsWith("我") && !s.startsWith("想") && !s.startsWith("不")
+                        && !s.startsWith("要") && !s.startsWith("吃") && !s.startsWith("做")
+        );
+        return allLookLikeDishNames ? names : List.of();
     }
 
     static boolean isBroadIntentText(String sourceText) {
@@ -570,5 +855,64 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
     }
 
     private record ModelExecutionPlan(RestClient client, String modelName) {
+    }
+
+    /**
+     * Stateful parser for streaming step tokens.
+     * Accumulates LLM delta tokens and emits complete step JSON strings as soon as
+     * each {@code {"index":N,"content":"..."}} object's closing brace is received.
+     */
+    static final class StepStreamParser {
+        private final StringBuilder buffer = new StringBuilder();
+        private boolean foundStepsArray = false;
+        private int arraySearchFrom = 0;
+        private int scanFrom = 0;
+        private int depth = 0;
+        private int stepStart = -1;
+
+        /**
+         * Append a new token and return any newly completed step JSON strings.
+         */
+        List<String> append(String token) {
+            buffer.append(token);
+            List<String> completed = new ArrayList<>();
+
+            if (!foundStepsArray) {
+                // Guard against re-scanning already-checked content when "steps" spans tokens
+                int from = Math.max(0, arraySearchFrom - 7);
+                String buf = buffer.toString();
+                int stepsIdx = buf.indexOf("\"steps\"", from);
+                if (stepsIdx < 0) {
+                    arraySearchFrom = buffer.length();
+                    return completed;
+                }
+                int bracketIdx = buf.indexOf('[', stepsIdx + 7);
+                if (bracketIdx < 0) {
+                    arraySearchFrom = stepsIdx;
+                    return completed;
+                }
+                foundStepsArray = true;
+                scanFrom = bracketIdx + 1;
+            }
+
+            // Scan newly arrived characters for complete {…} step objects
+            for (int i = scanFrom; i < buffer.length(); i++) {
+                char c = buffer.charAt(i);
+                if (c == '{') {
+                    if (depth == 0) {
+                        stepStart = i;
+                    }
+                    depth++;
+                } else if (c == '}') {
+                    depth--;
+                    if (depth == 0 && stepStart >= 0) {
+                        completed.add(buffer.substring(stepStart, i + 1));
+                        stepStart = -1;
+                    }
+                }
+            }
+            scanFrom = buffer.length();
+            return completed;
+        }
     }
 }

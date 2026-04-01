@@ -9,12 +9,16 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "meal_recipes")
+@Table(
+    name = "meal_recipes",
+    indexes = @Index(name = "idx_meal_recipes_norm_src", columnList = "normalized_source_text")
+)
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class MealRecipe {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "meal_recipe_seq")
+    @SequenceGenerator(name = "meal_recipe_seq", sequenceName = "meal_recipes_id_seq", allocationSize = 50)
     private Long id;
 
     @Column(name = "request_id", nullable = false, length = 64)
@@ -33,6 +37,12 @@ public class MealRecipe {
 
     @Column(name = "source_text", nullable = false, length = 1000)
     private String sourceText;
+
+    // Pre-computed lower(trim(source_text)) stored alongside source_text so the cache
+    // lookup query can use an index instead of a full table scan.
+    @Column(name = "normalized_source_text", nullable = false, length = 1000,
+            columnDefinition = "varchar(1000) default ''")
+    private String normalizedSourceText;
 
     @Column(name = "source_mode", nullable = false, length = 20)
     private String sourceMode;
@@ -78,6 +88,10 @@ public class MealRecipe {
 
     @Column(name = "image_status", nullable = false, length = 20)
     private String imageStatus = "OMITTED";
+
+    @Column(name = "steps_status", nullable = false, length = 20,
+            columnDefinition = "varchar(20) default 'OMITTED'")
+    private String stepsStatus = "OMITTED";
 
     @Column(name = "preference", length = 20)
     private String preference;
@@ -136,6 +150,14 @@ public class MealRecipe {
 
     public void setSourceText(String sourceText) {
         this.sourceText = sourceText;
+    }
+
+    public String getNormalizedSourceText() {
+        return normalizedSourceText;
+    }
+
+    public void setNormalizedSourceText(String normalizedSourceText) {
+        this.normalizedSourceText = normalizedSourceText;
     }
 
     public String getSourceMode() {
@@ -256,6 +278,14 @@ public class MealRecipe {
 
     public void setImageStatus(String imageStatus) {
         this.imageStatus = imageStatus;
+    }
+
+    public String getStepsStatus() {
+        return stepsStatus;
+    }
+
+    public void setStepsStatus(String stepsStatus) {
+        this.stepsStatus = stepsStatus;
     }
 
     public String getPreference() {

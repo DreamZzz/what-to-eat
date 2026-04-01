@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Alert, TextInput, TouchableOpacity } from 'react-native';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import HomeScreen from '../../src/screens/HomeScreen';
 import { mealAPI, voiceAPI } from '../../src/features/meal/api';
@@ -9,6 +9,10 @@ import {
   startVoiceRecording,
   stopVoiceRecording,
 } from '../../src/features/meal/native/voiceRecorder';
+
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 24, bottom: 12, left: 0, right: 0 }),
+}));
 
 jest.mock('../../src/features/meal/api', () => ({
   voiceAPI: {
@@ -49,27 +53,6 @@ const catalogItems = [
     sourceIndex: 24,
   },
 ];
-
-const findTouchableByText = (renderer, label) =>
-  renderer.root.findAllByType(TouchableOpacity).find((node) => {
-    const walk = (value) => {
-      if (typeof value === 'string') {
-        return value.includes(label);
-      }
-
-      if (Array.isArray(value)) {
-        return value.some(walk);
-      }
-
-      if (React.isValidElement(value)) {
-        return walk(value.props.children);
-      }
-
-      return false;
-    };
-
-    return walk(node.props.children);
-  });
 
 const flushMicrotasks = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -118,17 +101,16 @@ describe('HomeScreen', () => {
       await flushMicrotasks();
     });
 
-    const input = renderer.root.findByProps({
-      placeholder: '比如：番茄牛腩、清炒西兰花、低卡鸡胸肉',
-    });
+    const input = renderer.root.findByProps({ testID: 'home-text-input' });
 
     await ReactTestRenderer.act(async () => {
       input.props.onChangeText('番茄牛腩');
       await flushMicrotasks();
     });
 
-    const inspirationButton = findTouchableByText(renderer, '来点灵感');
-    expect(inspirationButton).toBeTruthy();
+    const inspirationButton = renderer.root.findByProps({
+      testID: 'home-inspiration-button',
+    });
 
     await ReactTestRenderer.act(async () => {
       inspirationButton.props.onPress();
@@ -158,7 +140,10 @@ describe('HomeScreen', () => {
       await flushMicrotasks();
     });
 
-    const inspirationButton = findTouchableByText(renderer, '来点灵感');
+    const inspirationButton = renderer.root.findByProps({
+      testID: 'home-inspiration-button',
+    });
+
     await ReactTestRenderer.act(async () => {
       inspirationButton.props.onPress();
       await flushMicrotasks();
@@ -188,16 +173,17 @@ describe('HomeScreen', () => {
       await flushMicrotasks();
     });
 
-    const input = renderer.root.findByProps({
-      placeholder: '比如：番茄牛腩、清炒西兰花、低卡鸡胸肉',
-    });
+    const input = renderer.root.findByProps({ testID: 'home-text-input' });
 
     await ReactTestRenderer.act(async () => {
       input.props.onChangeText('东北菜');
       await flushMicrotasks();
     });
 
-    const inspirationButton = findTouchableByText(renderer, '来点灵感');
+    const inspirationButton = renderer.root.findByProps({
+      testID: 'home-inspiration-button',
+    });
+
     await ReactTestRenderer.act(async () => {
       inspirationButton.props.onPress();
       await flushMicrotasks();
@@ -213,7 +199,7 @@ describe('HomeScreen', () => {
     );
   });
 
-  it('switches to voice mode and carries the catalog-backed text forward', async () => {
+  it('submits typed text directly when pressing return', async () => {
     const navigation = {
       navigate: jest.fn(),
     };
@@ -224,34 +210,69 @@ describe('HomeScreen', () => {
       await flushMicrotasks();
     });
 
-    const voiceModeButton = findTouchableByText(renderer, '语音');
+    const input = renderer.root.findByProps({ testID: 'home-text-input' });
 
     await ReactTestRenderer.act(async () => {
-      voiceModeButton.props.onPress();
+      input.props.onChangeText('川菜');
+      await flushMicrotasks();
     });
 
-    const recordButton = findTouchableByText(renderer, '开始录音');
-    expect(recordButton).toBeTruthy();
+    await ReactTestRenderer.act(async () => {
+      input.props.onSubmitEditing();
+      await flushMicrotasks();
+    });
+
+    expect(navigation.navigate).toHaveBeenCalledWith(
+      'MealForm',
+      expect.objectContaining({
+        sourceText: '川菜',
+        sourceMode: 'TEXT',
+        catalogItemId: null,
+      })
+    );
+  });
+
+  it('toggles to voice mode, records on long press, and carries the transcript forward', async () => {
+    const navigation = {
+      navigate: jest.fn(),
+    };
+
+    let renderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(<HomeScreen navigation={navigation} />);
+      await flushMicrotasks();
+    });
+
+    const modeToggle = renderer.root.findByProps({ testID: 'home-mode-toggle' });
 
     await ReactTestRenderer.act(async () => {
-      recordButton.props.onPress();
+      modeToggle.props.onPress();
+      await flushMicrotasks();
+    });
+
+    const voiceButton = renderer.root.findByProps({ testID: 'home-voice-button' });
+
+    await ReactTestRenderer.act(async () => {
+      await voiceButton.props.onLongPress();
+      await flushMicrotasks();
     });
 
     expect(startVoiceRecording).toHaveBeenCalledTimes(1);
 
     await ReactTestRenderer.act(async () => {
-      const stopButton = findTouchableByText(renderer, '停止并识别');
-      stopButton.props.onPress();
+      await voiceButton.props.onPressOut();
       await flushMicrotasks();
     });
 
     expect(stopVoiceRecording).toHaveBeenCalledTimes(1);
     expect(voiceAPI.transcribe).toHaveBeenCalledTimes(1);
 
-    const textInput = renderer.root.findByType(TextInput);
+    const textInput = renderer.root.findByProps({ testID: 'home-text-input' });
     expect(textInput.props.value).toBe('番茄牛腩');
 
-    const inspirationButton = findTouchableByText(renderer, '来点灵感');
+    const inspirationButton = renderer.root.findByProps({
+      testID: 'home-inspiration-button',
+    });
     await ReactTestRenderer.act(async () => {
       inspirationButton.props.onPress();
       await flushMicrotasks();

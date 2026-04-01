@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import {
-  Alert,
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,60 +8,12 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { mealAPI } from '../api';
-import { normalizeRecipeList, normalizeRecommendationResponse } from '../utils';
 import RecipeCard from '../components/RecipeCard';
-import { getResponseErrorMessage } from '../../../utils/apiError';
+import RecipeCardSkeleton from '../components/RecipeCardSkeleton';
+import { useMealResultsViewModel } from '../viewModels/useMealResultsViewModel';
 
 const MealResultsScreen = ({ navigation, route }) => {
-  const normalizedRecommendation = useMemo(
-    () => normalizeRecommendationResponse(route.params?.recommendation || {}),
-    [route.params?.recommendation]
-  );
-  const [recipes, setRecipes] = useState(
-    normalizeRecipeList(normalizedRecommendation.items)
-  );
-  const [pendingRecipeId, setPendingRecipeId] = useState(null);
-  const [recipePreferenceMap, setRecipePreferenceMap] = useState(
-    Object.fromEntries(normalizedRecommendation.items.map((recipe) => [recipe.id, recipe.preference || null]))
-  );
-
-  const applyPreference = async (recipeId, preference) => {
-    const previousPreference = recipePreferenceMap[recipeId] ?? null;
-
-    setPendingRecipeId(recipeId);
-    setRecipePreferenceMap((current) => ({
-      ...current,
-      [recipeId]: preference,
-    }));
-    setRecipes((current) =>
-      current.map((recipe) =>
-        recipe.id === recipeId ? { ...recipe, preference } : recipe
-      )
-    );
-
-    try {
-      await mealAPI.updatePreference(recipeId, preference);
-    } catch (error) {
-      console.error('Update recipe preference failed:', error);
-      setRecipePreferenceMap((current) => ({
-        ...current,
-        [recipeId]: previousPreference,
-      }));
-      setRecipes((current) =>
-        current.map((recipe) =>
-          recipe.id === recipeId ? { ...recipe, preference: previousPreference } : recipe
-        )
-      );
-      const isUnauthorized = error?.response?.status === 401 || error?.response?.status === 403;
-      Alert.alert(
-        isUnauthorized ? '登录已失效' : '操作失败',
-        getResponseErrorMessage(error, isUnauthorized ? '请重新登录后再试。' : '请稍后重试')
-      );
-    } finally {
-      setPendingRecipeId(null);
-    }
-  };
+  const vm = useMealResultsViewModel(navigation, route);
 
   const renderHeader = () => (
     <View style={styles.header}>
@@ -70,38 +22,34 @@ const MealResultsScreen = ({ navigation, route }) => {
           <Icon name="sparkles-outline" size={14} color="#B85C38" />
           <Text style={styles.heroBadgeText}>What To Eat</Text>
         </View>
-        <Text style={styles.title}>菜谱已经生成</Text>
-        <Text style={styles.subtitle}>{normalizedRecommendation.sourceText}</Text>
+        <Text style={styles.title}>
+          {vm.streaming ? 'AI 正在生成菜谱…' : '菜谱已经生成'}
+        </Text>
+        <Text style={styles.subtitle}>{vm.displayMeta.sourceText}</Text>
         <View style={styles.metaRow}>
-          <Text style={styles.metaText}>
-            {normalizedRecommendation.form?.dishCount || recipes.length} 道菜
-          </Text>
-          <Text style={styles.metaText}>
-            {normalizedRecommendation.form?.totalCalories || '热量待定'} kcal
-          </Text>
-          <Text style={styles.metaText}>{normalizedRecommendation.provider}</Text>
+          <Text style={styles.metaText}>{vm.displayMeta.dishCount} 道菜</Text>
+          {vm.displayMeta.calories ? (
+            <Text style={styles.metaText}>{vm.displayMeta.calories} kcal</Text>
+          ) : null}
+          {!vm.streaming ? (
+            <Text style={styles.metaText}>{vm.displayMeta.provider || 'AI'}</Text>
+          ) : null}
         </View>
+        {vm.stapleHint ? (
+          <Text style={styles.stapleHint}>{vm.stapleHint}</Text>
+        ) : null}
+        {vm.calorieOverageHint ? (
+          <Text style={styles.calorieOverageHint}>{vm.calorieOverageHint}</Text>
+        ) : null}
       </View>
 
-      {normalizedRecommendation.emptyState ? (
+      {vm.displayMeta.emptyState ? (
         <View style={styles.emptyBlock}>
-          <Text style={styles.emptyTitle}>{normalizedRecommendation.emptyState.title}</Text>
-          <Text style={styles.emptyText}>{normalizedRecommendation.emptyState.message}</Text>
+          <Text style={styles.emptyTitle}>{vm.displayMeta.emptyState.title}</Text>
+          <Text style={styles.emptyText}>{vm.displayMeta.emptyState.message}</Text>
         </View>
       ) : null}
     </View>
-  );
-
-  const renderItem = ({ item }) => (
-    <RecipeCard
-      recipe={{
-        ...item,
-        preference: recipePreferenceMap[item.id] ?? item.preference ?? null,
-      }}
-      pendingPreference={pendingRecipeId === item.id}
-      onLike={() => applyPreference(item.id, 'LIKE')}
-      onDislike={() => applyPreference(item.id, 'DISLIKE')}
-    />
   );
 
   return (
@@ -109,22 +57,57 @@ const MealResultsScreen = ({ navigation, route }) => {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {renderHeader()}
 
-        {recipes.length > 0 ? (
-          recipes.map((item, index) => (
-            <View key={String(item.id ?? `${item.title}-${index}`)}>
-              {renderItem({ item, index })}
-            </View>
-          ))
-        ) : (
+        {/* Skeleton cards while stream is starting and no recipes have arrived yet */}
+        {vm.streaming && vm.recipes.length === 0
+          ? Array.from({ length: vm.skeletonCount }).map((_, i) => (
+              // eslint-disable-next-line react/no-array-index-key
+              <RecipeCardSkeleton key={`skeleton-${i}`} />
+            ))
+          : null}
+
+        {vm.recipes.map((item, index) => (
+          <RecipeCard
+            key={String(item.id ?? `${item.title}-${index}`)}
+            recipe={item}
+            pendingPreference={vm.pendingRecipeId === item.id}
+            onLike={() => vm.applyPreference(item.id, 'LIKE')}
+            onDislike={() => vm.applyPreference(item.id, 'DISLIKE')}
+          />
+        ))}
+
+        {/* Streaming progress indicator once some recipes have arrived */}
+        {vm.streaming && vm.recipes.length > 0 ? (
+          <View style={styles.streamingIndicator}>
+            <ActivityIndicator color="#B85C38" size="small" />
+            <Text style={styles.streamingText}>
+              {`已生成 ${vm.recipes.length} 道，继续生成中…`}
+            </Text>
+          </View>
+        ) : null}
+
+        {vm.streamError ? (
           <View style={styles.emptyState}>
-            <Icon name="restaurant-outline" size={34} color="#B85C38" />
-            <Text style={styles.emptyTitle}>还没有可展示的菜谱</Text>
-            <Text style={styles.emptyText}>可以回到上一步修改菜数、总热量或口味，再试一次。</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={() => navigation.goBack()}>
+            <Icon name="alert-circle-outline" size={34} color="#B85C38" />
+            <Text style={styles.emptyTitle}>生成失败</Text>
+            <Text style={styles.emptyText}>{vm.streamError}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={vm.goBack}>
               <Text style={styles.retryButtonText}>返回修改</Text>
             </TouchableOpacity>
           </View>
-        )}
+        ) : null}
+
+        {!vm.streaming && !vm.streamError && vm.recipes.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Icon name="restaurant-outline" size={34} color="#B85C38" />
+            <Text style={styles.emptyTitle}>还没有可展示的菜谱</Text>
+            <Text style={styles.emptyText}>
+              可以回到上一步修改菜数、总热量或口味，再试一次。
+            </Text>
+            <TouchableOpacity style={styles.retryButton} onPress={vm.goBack}>
+              <Text style={styles.retryButtonText}>返回修改</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -190,11 +173,40 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: '#FFF4EB',
   },
+  stapleHint: {
+    color: '#7A5C4E',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  calorieOverageHint: {
+    color: '#9A5A28',
+    fontSize: 13,
+    lineHeight: 20,
+    backgroundColor: '#FFF0E0',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
   emptyBlock: {
     borderRadius: 22,
     backgroundColor: '#FFF4EB',
     padding: 16,
     gap: 8,
+  },
+  streamingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 18,
+    backgroundColor: '#FFF4EB',
+  },
+  streamingText: {
+    color: '#8A5A3E',
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
   },
   emptyState: {
     marginTop: 20,

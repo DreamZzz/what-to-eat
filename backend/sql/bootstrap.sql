@@ -273,3 +273,31 @@ CREATE INDEX IF NOT EXISTS idx_meal_recipes_catalog_item_id ON meal_recipes(cata
 CREATE INDEX IF NOT EXISTS idx_meal_recipes_request_id ON meal_recipes(request_id);
 CREATE INDEX IF NOT EXISTS idx_meal_recipes_preference ON meal_recipes(preference);
 CREATE INDEX IF NOT EXISTS idx_meal_recipes_updated_at ON meal_recipes(updated_at DESC);
+
+-- Migrate meal_recipes_id_seq from BIGSERIAL (INCREMENT BY 1) to Hibernate SEQUENCE strategy
+-- (INCREMENT BY 50) to enable batch INSERT support.
+-- Idempotent: skips if the sequence already has INCREMENT BY 50.
+DO $$
+DECLARE
+    current_increment BIGINT;
+    max_id            BIGINT;
+    new_start         BIGINT;
+BEGIN
+    SELECT increment_by INTO current_increment
+    FROM pg_sequences
+    WHERE sequencename = 'meal_recipes_id_seq';
+
+    IF current_increment IS DISTINCT FROM 50 THEN
+        SELECT COALESCE(MAX(id), 0) INTO max_id FROM meal_recipes;
+        -- Hibernate's pooled optimizer treats nextval() as the HIGH end of the range:
+        -- it allocates IDs [nextval - allocationSize + 1, nextval].
+        -- Setting new_start = max_id + allocationSize guarantees the range
+        -- starts at max_id + 1, safely after all existing rows.
+        new_start := max_id + 50;
+        ALTER SEQUENCE meal_recipes_id_seq INCREMENT BY 50;
+        PERFORM setval('meal_recipes_id_seq', new_start, false);
+        RAISE NOTICE 'meal_recipes_id_seq migrated: INCREMENT=50, next_val=%', new_start;
+    ELSE
+        RAISE NOTICE 'meal_recipes_id_seq already at INCREMENT=50, skipping.';
+    END IF;
+END $$;

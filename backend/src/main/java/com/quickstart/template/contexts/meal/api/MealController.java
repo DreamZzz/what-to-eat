@@ -123,6 +123,47 @@ public class MealController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("Recipe not found")));
     }
 
+    @PostMapping(value = "/recipes/{recipeId}/steps/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamRecipeSteps(
+            @PathVariable Long recipeId,
+            @RequestParam(defaultValue = "zh-CN") String locale) {
+        Optional<Long> currentUserId = getCurrentUserId();
+        SseEmitter emitter = new SseEmitter(90_000L);
+
+        if (currentUserId.isEmpty()) {
+            try {
+                emitter.send(SseEmitter.event().name("error").data("{\"message\":\"Authentication required\"}"));
+            } catch (IOException ignored) {
+            }
+            emitter.complete();
+            return emitter;
+        }
+
+        Long userId = currentUserId.get();
+        emitter.onTimeout(() -> sendErrorAndComplete(emitter, "步骤生成超时，请重试"));
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                mealService.streamRecipeSteps(recipeId, userId, locale, step -> {
+                    try {
+                        emitter.send(SseEmitter.event().name("step").data(step, MediaType.APPLICATION_JSON));
+                    } catch (IOException e) {
+                        throw new RuntimeException("SSE write failed", e);
+                    }
+                });
+                emitter.complete();
+            } catch (IllegalArgumentException e) {
+                sendErrorAndComplete(emitter, "未找到该菜谱");
+            } catch (MealGenerationException e) {
+                sendErrorAndComplete(emitter, e.getMessage());
+            } catch (Exception e) {
+                sendErrorAndComplete(emitter, "步骤生成失败，请重试");
+            }
+        });
+
+        return emitter;
+    }
+
     @PostMapping("/recipes/{recipeId}/image")
     public ResponseEntity<?> fetchRecipeImage(@PathVariable Long recipeId) {
         Optional<Long> currentUserId = getCurrentUserId();

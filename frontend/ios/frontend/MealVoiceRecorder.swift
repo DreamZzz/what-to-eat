@@ -28,9 +28,10 @@ final class MealVoiceRecorder: NSObject {
 
     do {
       try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP])
-      try session.setPreferredSampleRate(16_000)
-      try session.setPreferredInputNumberOfChannels(1)
       try session.setActive(true, options: [])
+      // These are hardware hints only; ignore errors on devices that don't support the exact values.
+      try? session.setPreferredSampleRate(16_000)
+      try? session.setPreferredInputNumberOfChannels(1)
 
       let url = buildRecordingURL()
       let settings: [String: Any] = [

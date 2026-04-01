@@ -1,11 +1,14 @@
 package com.quickstart.template.contexts.meal.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Pattern;
+
+import java.util.List;
 
 public class MealRecommendationRequestDTO {
     @NotBlank
@@ -29,14 +32,18 @@ public class MealRecommendationRequestDTO {
     private Integer totalCalories;
 
     @NotBlank
-    @Pattern(regexp = "^(RICE|NOODLES|POTATO|COARSE_GRAINS|NONE)$")
+    @Pattern(regexp = "^(RICE|NOODLES|COARSE_GRAINS|NO_STAPLE)$")
     private String staple;
 
-    @NotBlank
-    @Pattern(regexp = "^(LIGHT|APPETIZING|RICH)$")
-    private String flavor;
-
     private String locale;
+
+    /**
+     * Server-side only: titles of dishes recently recommended to this user.
+     * Populated by {@code MealService} before calling the generation provider.
+     * Not deserialized from the HTTP request body.
+     */
+    @JsonIgnore
+    private List<String> recentDishTitles;
 
     public String getSourceText() {
         return sourceText;
@@ -86,19 +93,19 @@ public class MealRecommendationRequestDTO {
         this.staple = staple;
     }
 
-    public String getFlavor() {
-        return flavor;
-    }
-
-    public void setFlavor(String flavor) {
-        this.flavor = flavor;
-    }
-
     public String getLocale() {
         return locale;
     }
 
     public void setLocale(String locale) {
         this.locale = locale;
+    }
+
+    public List<String> getRecentDishTitles() {
+        return recentDishTitles;
+    }
+
+    public void setRecentDishTitles(List<String> recentDishTitles) {
+        this.recentDishTitles = recentDishTitles;
     }
 }

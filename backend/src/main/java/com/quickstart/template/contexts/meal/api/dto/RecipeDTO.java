@@ -13,6 +13,7 @@ public class RecipeDTO {
     private List<RecipeStepDTO> steps;
     private String imageUrl;
     private String imageStatus;
+    private String stepsStatus;
     private String preference;
 
     public Long getId() {
@@ -93,6 +94,14 @@ public class RecipeDTO {
 
     public void setImageStatus(String imageStatus) {
         this.imageStatus = imageStatus;
+    }
+
+    public String getStepsStatus() {
+        return stepsStatus;
+    }
+
+    public void setStepsStatus(String stepsStatus) {
+        this.stepsStatus = stepsStatus;
     }
 
     public String getPreference() {

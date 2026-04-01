@@ -33,7 +33,6 @@ public class MealRecipeMapper {
         form.setDishCount(request.getDishCount());
         form.setTotalCalories(request.getTotalCalories());
         form.setStaple(request.getStaple());
-        form.setFlavor(request.getFlavor());
         form.setLocale(request.getLocale());
         return form;
     }
@@ -50,6 +49,7 @@ public class MealRecipeMapper {
         dto.setSteps(readList(recipe.getStepsJson(), new TypeReference<List<RecipeStepDTO>>() {}));
         dto.setImageUrl(recipe.getImageUrl());
         dto.setImageStatus(recipe.getImageStatus());
+        dto.setStepsStatus(recipe.getStepsStatus());
         dto.setPreference(recipe.getPreference());
         return dto;
     }
@@ -67,11 +67,12 @@ public class MealRecipeMapper {
         recipe.setCatalogItem(catalogItem);
         recipe.setCatalogItemCode(catalogItem != null ? catalogItem.getCode() : null);
         recipe.setSourceText(request.getSourceText());
+        recipe.setNormalizedSourceText(normalizeSourceText(request.getSourceText()));
         recipe.setSourceMode(request.getSourceMode());
         recipe.setDishCount(request.getDishCount());
         recipe.setTotalCalories(request.getTotalCalories());
         recipe.setStaple(request.getStaple());
-        recipe.setFlavor(request.getFlavor());
+
         recipe.setLocale(request.getLocale());
         recipe.setProvider(provider);
         recipe.setTitle(recipeDTO.getTitle());
@@ -82,6 +83,7 @@ public class MealRecipeMapper {
         recipe.setStepsJson(writeList(recipeDTO.getSteps()));
         recipe.setImageUrl(recipeDTO.getImageUrl());
         recipe.setImageStatus(recipeDTO.getImageStatus() == null ? "OMITTED" : recipeDTO.getImageStatus());
+        recipe.setStepsStatus(recipeDTO.getStepsStatus() == null ? "OMITTED" : recipeDTO.getStepsStatus());
         recipe.setPreference(recipeDTO.getPreference());
         return recipe;
     }
@@ -99,11 +101,12 @@ public class MealRecipeMapper {
         recipe.setCatalogItem(catalogItem);
         recipe.setCatalogItemCode(catalogItem != null ? catalogItem.getCode() : null);
         recipe.setSourceText(request.getSourceText());
+        recipe.setNormalizedSourceText(normalizeSourceText(request.getSourceText()));
         recipe.setSourceMode(request.getSourceMode());
         recipe.setDishCount(request.getDishCount());
         recipe.setTotalCalories(request.getTotalCalories());
         recipe.setStaple(request.getStaple());
-        recipe.setFlavor(request.getFlavor());
+
         recipe.setLocale(request.getLocale());
         recipe.setProvider(sourceRecipe.getProvider());
         recipe.setTitle(sourceRecipe.getTitle());
@@ -114,6 +117,7 @@ public class MealRecipeMapper {
         recipe.setStepsJson(sourceRecipe.getStepsJson());
         recipe.setImageUrl(sourceRecipe.getImageUrl());
         recipe.setImageStatus(sourceRecipe.getImageStatus());
+        recipe.setStepsStatus(sourceRecipe.getStepsStatus() == null ? "OMITTED" : sourceRecipe.getStepsStatus());
         recipe.setPreference(null);
         return recipe;
     }
@@ -170,6 +174,17 @@ public class MealRecipeMapper {
         } catch (Exception exception) {
             throw new MealGenerationException("Failed to store recipe payload", true, exception);
         }
+    }
+
+    public String writeStepsJson(List<RecipeStepDTO> steps) {
+        return writeList(steps);
+    }
+
+    static String normalizeSourceText(String sourceText) {
+        if (sourceText == null) {
+            return "";
+        }
+        return sourceText.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
 }

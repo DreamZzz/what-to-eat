@@ -16,6 +16,10 @@ import com.quickstart.template.platform.provider.recipeai.MealGenerationProvider
 import com.quickstart.template.platform.provider.recipeai.MealImageProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -62,6 +66,18 @@ class MealServiceTest {
 
     private User user;
 
+    /** Minimal no-op transaction manager sufficient for unit tests. */
+    private static final PlatformTransactionManager NO_OP_TX_MANAGER = new PlatformTransactionManager() {
+        @Override
+        public TransactionStatus getTransaction(TransactionDefinition definition) {
+            return new SimpleTransactionStatus(true);
+        }
+        @Override
+        public void commit(TransactionStatus status) {}
+        @Override
+        public void rollback(TransactionStatus status) {}
+    };
+
     @BeforeEach
     void setUp() {
         mealService = new MealService(
@@ -70,7 +86,8 @@ class MealServiceTest {
                 mealGenerationProvider,
                 mealImageProvider,
                 mealRecipeMapper,
-                mealCatalogService
+                mealCatalogService,
+                NO_OP_TX_MANAGER
         );
         user = new User();
         user.setId(1L);
@@ -87,7 +104,6 @@ class MealServiceTest {
         request.setDishCount(1);
         request.setTotalCalories(600);
         request.setStaple("NOODLES");
-        request.setFlavor("LIGHT");
         request.setLocale("zh-CN");
 
         RecipeDTO recipe = new RecipeDTO();
@@ -115,18 +131,15 @@ class MealServiceTest {
                 eq(1),
                 eq(600),
                 eq("NOODLES"),
-                eq("LIGHT"),
                 eq("zh-CN"),
                 eq(11L)
         )).thenReturn(Optional.empty());
         when(mealGenerationProvider.generate(request)).thenReturn(new MealGenerationResult("mock", List.of(recipe), false));
-        when(mealImageProvider.generate(eq(request), any(RecipeDTO.class)))
-                .thenReturn(new MealImageResult("disabled", null, "OMITTED"));
-        when(mealRecipeRepository.save(any(MealRecipe.class))).thenAnswer(invocation -> {
-            MealRecipe saved = invocation.getArgument(0);
-            saved.setId(77L);
-            saved.setUpdatedAt(LocalDateTime.of(2026, 3, 28, 12, 0));
-            return saved;
+        when(mealRecipeRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<MealRecipe> entities = invocation.getArgument(0);
+            entities.get(0).setId(77L);
+            entities.get(0).setUpdatedAt(LocalDateTime.of(2026, 3, 28, 12, 0));
+            return entities;
         });
 
         MealRecommendationResponseDTO response = mealService.recommendRecipes(request, 1L);
@@ -138,13 +151,15 @@ class MealServiceTest {
         assertEquals("番茄鸡蛋面", response.getItems().get(0).getTitle());
         assertFalse(response.getEmptyState());
 
-        ArgumentCaptor<MealRecipe> captor = ArgumentCaptor.forClass(MealRecipe.class);
-        verify(mealRecipeRepository).save(captor.capture());
-        assertEquals("mock", captor.getValue().getProvider());
-        assertEquals(11L, captor.getValue().getCatalogItem().getId());
-        assertEquals("cn-home-011", captor.getValue().getCatalogItemCode());
-        assertEquals("TEXT", captor.getValue().getSourceMode());
-        assertNotNull(captor.getValue().getRequestId());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<MealRecipe>> captor = ArgumentCaptor.forClass(List.class);
+        verify(mealRecipeRepository).saveAll(captor.capture());
+        MealRecipe captor0 = captor.getValue().get(0);
+        assertEquals("mock", captor0.getProvider());
+        assertEquals(11L, captor0.getCatalogItem().getId());
+        assertEquals("cn-home-011", captor0.getCatalogItemCode());
+        assertEquals("TEXT", captor0.getSourceMode());
+        assertNotNull(captor0.getRequestId());
     }
 
     @Test
@@ -157,7 +172,6 @@ class MealServiceTest {
         request.setDishCount(1);
         request.setTotalCalories(600);
         request.setStaple("NOODLES");
-        request.setFlavor("LIGHT");
         request.setLocale("zh-CN");
 
         MealCatalogItem catalogItem = new MealCatalogItem();
@@ -184,7 +198,6 @@ class MealServiceTest {
                 eq(1),
                 eq(600),
                 eq("NOODLES"),
-                eq("LIGHT"),
                 eq("zh-CN"),
                 eq(11L)
         )).thenReturn(Optional.of("cached-request-1"));
@@ -215,7 +228,6 @@ class MealServiceTest {
         request.setDishCount(1);
         request.setTotalCalories(600);
         request.setStaple("NOODLES");
-        request.setFlavor("LIGHT");
         request.setLocale("zh-CN");
 
         MealCatalogItem catalogItem = new MealCatalogItem();
@@ -247,17 +259,16 @@ class MealServiceTest {
                 eq(1),
                 eq(600),
                 eq("NOODLES"),
-                eq("LIGHT"),
                 eq("zh-CN"),
                 eq(11L)
         )).thenReturn(Optional.of("cached-request-2"));
         when(mealRecipeRepository.findAllByRequestIdOrderByIdAsc("cached-request-2"))
                 .thenReturn(List.of(cachedRecipe));
-        when(mealRecipeRepository.save(any(MealRecipe.class))).thenAnswer(invocation -> {
-            MealRecipe saved = invocation.getArgument(0);
-            saved.setId(303L);
-            saved.setUpdatedAt(LocalDateTime.of(2026, 3, 29, 21, 0));
-            return saved;
+        when(mealRecipeRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<MealRecipe> entities = invocation.getArgument(0);
+            entities.get(0).setId(303L);
+            entities.get(0).setUpdatedAt(LocalDateTime.of(2026, 3, 29, 21, 0));
+            return entities;
         });
 
         MealRecommendationResponseDTO response = mealService.recommendRecipes(request, 1L);
@@ -268,12 +279,14 @@ class MealServiceTest {
         assertEquals("番茄鸡蛋面", response.getItems().get(0).getTitle());
         assertNull(response.getItems().get(0).getPreference());
 
-        ArgumentCaptor<MealRecipe> captor = ArgumentCaptor.forClass(MealRecipe.class);
-        verify(mealRecipeRepository).save(captor.capture());
-        assertEquals(1L, captor.getValue().getUser().getId());
-        assertEquals("openai-compatible", captor.getValue().getProvider());
-        assertNull(captor.getValue().getPreference());
-        assertNotNull(captor.getValue().getRequestId());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<MealRecipe>> captor = ArgumentCaptor.forClass(List.class);
+        verify(mealRecipeRepository).saveAll(captor.capture());
+        MealRecipe captor0 = captor.getValue().get(0);
+        assertEquals(1L, captor0.getUser().getId());
+        assertEquals("openai-compatible", captor0.getProvider());
+        assertNull(captor0.getPreference());
+        assertNotNull(captor0.getRequestId());
 
         verify(mealGenerationProvider, never()).generate(any());
         verify(mealImageProvider, never()).generate(any(), any());

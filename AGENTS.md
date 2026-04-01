@@ -2,8 +2,8 @@
 
 ## Repository Map
 
-- `frontend/`: React Native iOS-first app。`src/app` 负责壳层，`src/features` 负责业务能力出口，`src/shared` 负责通用 API 与共享导出。
-- `backend/`: Spring Boot API scaffold。`platform` 放安全、配置、provider；`contexts` 放业务能力模块。
+- `frontend/`: React Native iOS-first app。`src/app` 负责壳层，`src/features`（auth / meal / media / profile / search / ...）负责业务能力出口，`src/shared` 负责通用 API 与共享导出。
+- `backend/`: Spring Boot API scaffold。`platform` 放安全、配置、provider；`contexts`（account / meal / media / community / location）放业务能力模块。
 - `ops/`: 部署与运行时脚本、systemd、Nginx、Elasticsearch Compose、接口 smoke。
 - `memory/`: 稳定知识，不放一次性调试日志。
 

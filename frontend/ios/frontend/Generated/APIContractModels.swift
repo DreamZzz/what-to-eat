@@ -405,7 +405,6 @@ public struct MealRecommendationFormDTO: Codable, Equatable, Sendable {
     public var dishCount: Int?
     public var totalCalories: Int?
     public var staple: String?
-    public var flavor: String?
     public var locale: String?
 
     public init(
@@ -414,7 +413,6 @@ public struct MealRecommendationFormDTO: Codable, Equatable, Sendable {
         dishCount: Int? = nil,
         totalCalories: Int? = nil,
         staple: String? = nil,
-        flavor: String? = nil,
         locale: String? = nil
     ) {
         self.sourceMode = sourceMode
@@ -422,7 +420,6 @@ public struct MealRecommendationFormDTO: Codable, Equatable, Sendable {
         self.dishCount = dishCount
         self.totalCalories = totalCalories
         self.staple = staple
-        self.flavor = flavor
         self.locale = locale
     }
 }
@@ -434,8 +431,8 @@ public struct MealRecommendationRequestDTO: Codable, Equatable, Sendable {
     public var dishCount: Int?
     public var totalCalories: Int?
     public var staple: String?
-    public var flavor: String?
     public var locale: String?
+    public var recentDishTitles: [String]?
 
     public init(
         sourceText: String? = nil,
@@ -444,8 +441,8 @@ public struct MealRecommendationRequestDTO: Codable, Equatable, Sendable {
         dishCount: Int? = nil,
         totalCalories: Int? = nil,
         staple: String? = nil,
-        flavor: String? = nil,
-        locale: String? = nil
+        locale: String? = nil,
+        recentDishTitles: [String]? = nil
     ) {
         self.sourceText = sourceText
         self.sourceMode = sourceMode
@@ -453,8 +450,8 @@ public struct MealRecommendationRequestDTO: Codable, Equatable, Sendable {
         self.dishCount = dishCount
         self.totalCalories = totalCalories
         self.staple = staple
-        self.flavor = flavor
         self.locale = locale
+        self.recentDishTitles = recentDishTitles
     }
 }
 
@@ -494,6 +491,7 @@ public struct RecipeDTO: Codable, Equatable, Sendable {
     public var steps: [RecipeStepDTO]?
     public var imageUrl: String?
     public var imageStatus: String?
+    public var stepsStatus: String?
     public var preference: String?
 
     public init(
@@ -507,6 +505,7 @@ public struct RecipeDTO: Codable, Equatable, Sendable {
         steps: [RecipeStepDTO]? = nil,
         imageUrl: String? = nil,
         imageStatus: String? = nil,
+        stepsStatus: String? = nil,
         preference: String? = nil
     ) {
         self.id = id
@@ -519,7 +518,24 @@ public struct RecipeDTO: Codable, Equatable, Sendable {
         self.steps = steps
         self.imageUrl = imageUrl
         self.imageStatus = imageStatus
+        self.stepsStatus = stepsStatus
         self.preference = preference
+    }
+}
+
+public struct RecipeImageResponseDTO: Codable, Equatable, Sendable {
+    public var recipeId: Int64?
+    public var imageUrl: String?
+    public var imageStatus: String?
+
+    public init(
+        recipeId: Int64? = nil,
+        imageUrl: String? = nil,
+        imageStatus: String? = nil
+    ) {
+        self.recipeId = recipeId
+        self.imageUrl = imageUrl
+        self.imageStatus = imageStatus
     }
 }
 

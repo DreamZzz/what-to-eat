@@ -6,7 +6,6 @@ public class MealRecommendationFormDTO {
     private Integer dishCount;
     private Integer totalCalories;
     private String staple;
-    private String flavor;
     private String locale;
 
     public String getSourceMode() {
@@ -47,14 +46,6 @@ public class MealRecommendationFormDTO {
 
     public void setStaple(String staple) {
         this.staple = staple;
-    }
-
-    public String getFlavor() {
-        return flavor;
-    }
-
-    public void setFlavor(String flavor) {
-        this.flavor = flavor;
     }
 
     public String getLocale() {

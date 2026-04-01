@@ -6,7 +6,7 @@
  * React Native Image component requires full URLs.
  */
 
-import { WEB_BASE_URL } from '../config/api';
+import { WEB_BASE_URL } from '../app/config/api';
 
 /**
  * Convert a relative image URL to an absolute URL

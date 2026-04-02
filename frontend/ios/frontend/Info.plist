@@ -55,13 +55,13 @@
 		</dict>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Camera access is needed to take photos</string>
+	<string>拍摄照片时需要访问您的相机</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>选择发帖地点时需要访问您的位置信息</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Microphone access is needed to record voice meal ideas</string>
+	<string>语音输入用餐需求时需要访问您的麦克风</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Access to photos is needed to post images</string>
+	<string>发帖上传图片时需要访问您的相册</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIAppFonts</key>

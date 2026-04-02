@@ -10,6 +10,7 @@ const DEFAULT_CONFIG = {
   wechatAppId: '',
   wechatUniversalLink: '',
   demoTestLoginEnabled: true,
+  sentryDsn: '',
 };
 
 let generatedConfig = null;

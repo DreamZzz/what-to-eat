@@ -1,6 +1,6 @@
 {
   "name": "quickstart-template-frontend",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
@@ -13,6 +13,7 @@
   "dependencies": {
     "@react-native-async-storage/async-storage": "^3.0.1",
     "@react-native-hero/wechat": "^0.2.5",
+    "@sentry/react-native": "^6.5.0",
     "@react-native/new-app-screen": "0.84.1",
     "@react-navigation/bottom-tabs": "^7.15.5",
     "@react-navigation/native": "^7.1.33",

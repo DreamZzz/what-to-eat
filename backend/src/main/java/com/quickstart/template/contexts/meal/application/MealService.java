@@ -10,6 +10,7 @@ import com.quickstart.template.contexts.meal.api.dto.RecipeDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeImageResponseDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipePreferenceResponseDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeStepDTO;
+import com.quickstart.template.contexts.meal.api.dto.RecipeStepTokenDTO;
 import com.quickstart.template.contexts.meal.domain.MealCatalogItem;
 import com.quickstart.template.contexts.meal.domain.MealRecipe;
 import com.quickstart.template.contexts.meal.infrastructure.persistence.MealRecipeRepository;
@@ -294,7 +295,13 @@ public class MealService {
      * <p>If the recipe already has steps ({@code stepsStatus != "PENDING"}), emits the
      * stored steps immediately without a new LLM call.
      */
-    public void streamRecipeSteps(Long recipeId, Long userId, String locale, Consumer<RecipeStepDTO> onStep) {
+    public void streamRecipeSteps(
+            Long recipeId,
+            Long userId,
+            String locale,
+            Consumer<RecipeStepTokenDTO> onToken,
+            Consumer<RecipeStepDTO> onStep
+    ) {
         // Load the recipe (needs a transaction)
         MealRecipe entity = transactionTemplate.execute(status ->
                 mealRecipeRepository.findByIdAndUserId(recipeId, userId).orElse(null));
@@ -316,7 +323,7 @@ public class MealService {
         RecipeDTO recipeCard = mealRecipeMapper.toRecipeDTO(entity);
         List<RecipeStepDTO> allSteps = new ArrayList<>();
 
-        mealGenerationProvider.streamRecipeSteps(recipeCard, locale, step -> {
+        mealGenerationProvider.streamRecipeSteps(recipeCard, locale, onToken, step -> {
             allSteps.add(step);
             onStep.accept(step);
         });

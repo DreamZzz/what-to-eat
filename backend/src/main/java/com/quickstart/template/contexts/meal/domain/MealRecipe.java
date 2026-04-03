@@ -56,9 +56,6 @@ public class MealRecipe {
     @Column(name = "staple", length = 40)
     private String staple;
 
-    @Column(name = "flavor", length = 40)
-    private String flavor;
-
     @Column(name = "locale", length = 20)
     private String locale;
 
@@ -190,14 +187,6 @@ public class MealRecipe {
 
     public void setStaple(String staple) {
         this.staple = staple;
-    }
-
-    public String getFlavor() {
-        return flavor;
-    }
-
-    public void setFlavor(String flavor) {
-        this.flavor = flavor;
     }
 
     public String getLocale() {

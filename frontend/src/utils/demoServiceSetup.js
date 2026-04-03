@@ -3,14 +3,6 @@ import { Alert } from 'react-native';
 const DEMO_SETUP_PREFIX = '当前 Demo 未配置真实环境参数。';
 
 const SERVICE_CONFIG = {
-  map: {
-    title: '地点搜索暂不可用',
-    guidance: () => [
-      DEMO_SETUP_PREFIX,
-      '如需使用，请在 backend/.env.local 配置 APP_MAP_PROVIDER=amap 和 APP_MAP_AMAP_API_KEY。',
-      '配置完成后重启 backend/start.sh local 和 frontend/start.sh local。',
-    ],
-  },
   sms: {
     title: '短信验证码当前为 Demo 模式',
     guidance: (provider) => [
@@ -29,22 +21,9 @@ const SERVICE_CONFIG = {
       '配置完成后重启 backend/start.sh local。',
     ],
   },
-  wechat: {
-    title: '微信直达分享暂不可用',
-    guidance: () => [
-      DEMO_SETUP_PREFIX,
-      '如需使用，请在 frontend/.env.local 配置 APP_SHARE_WECHAT_APP_ID；iOS 还需配置 APP_SHARE_WECHAT_UNIVERSAL_LINK。',
-      '配置完成后重新执行 frontend/start.sh local。',
-    ],
-  },
 };
 
-const KNOWN_MESSAGE_MATCHERS = [
-  {
-    test: (message) => typeof message === 'string' && message.includes('地图服务未配置'),
-    payload: { service: 'map', provider: 'disabled', setupRequired: true },
-  },
-];
+const KNOWN_MESSAGE_MATCHERS = [];
 
 const normalizeSetupPayload = (source, fallbackService) => {
   if (!source || typeof source !== 'object') {

@@ -297,173 +297,6 @@ export function createUserDTO(overrides = {}) {
 }
 
 /**
- * @typedef {Object} CommentDTO
- * @property {number|null} id
- * @property {string|null} content
- * @property {number|null} userId
- * @property {string|null} username
- * @property {string|null} userAvatarUrl
- * @property {number|null} postId
- * @property {string|null} createdAt
- * @property {string|null} updatedAt
- * @property {number|null} likeCount
- */
-
-export const COMMENT_DTO_FIELDS = Object.freeze([
-  'id',
-  'content',
-  'userId',
-  'username',
-  'userAvatarUrl',
-  'postId',
-  'createdAt',
-  'updatedAt',
-  'likeCount',
-]);
-
-/**
- * @param {Partial<CommentDTO>} [overrides={}]
- * @returns {CommentDTO}
- */
-export function createCommentDTO(overrides = {}) {
-  return {
-    id: null,
-    content: null,
-    userId: null,
-    username: null,
-    userAvatarUrl: null,
-    postId: null,
-    createdAt: null,
-    updatedAt: null,
-    likeCount: null,
-    ...overrides,
-  };
-}
-
-/**
- * @typedef {Object} PostCollectionResponse
- * @property {Array<PostDTO>} items
- * @property {PaginationMeta|null} pagination
- * @property {RetrievalMeta|null} retrieval
- */
-
-export const POST_COLLECTION_RESPONSE_FIELDS = Object.freeze([
-  'items',
-  'pagination',
-  'retrieval',
-]);
-
-/**
- * @param {Partial<PostCollectionResponse>} [overrides={}]
- * @returns {PostCollectionResponse}
- */
-export function createPostCollectionResponse(overrides = {}) {
-  return {
-    items: [],
-    pagination: null,
-    retrieval: null,
-    ...overrides,
-  };
-}
-
-/**
- * @typedef {Object} PostDTO
- * @property {number|null} id
- * @property {string|null} content
- * @property {Array<string>} imageUrls
- * @property {number|null} userId
- * @property {string|null} username
- * @property {string|null} userAvatarUrl
- * @property {string|null} locationName
- * @property {string|null} locationAddress
- * @property {number|null} latitude
- * @property {number|null} longitude
- * @property {string|null} gisPoint
- * @property {string|null} createdAt
- * @property {string|null} updatedAt
- * @property {number|null} likeCount
- * @property {number|null} commentCount
- */
-
-export const POST_DTO_FIELDS = Object.freeze([
-  'id',
-  'content',
-  'imageUrls',
-  'userId',
-  'username',
-  'userAvatarUrl',
-  'locationName',
-  'locationAddress',
-  'latitude',
-  'longitude',
-  'gisPoint',
-  'createdAt',
-  'updatedAt',
-  'likeCount',
-  'commentCount',
-]);
-
-/**
- * @param {Partial<PostDTO>} [overrides={}]
- * @returns {PostDTO}
- */
-export function createPostDTO(overrides = {}) {
-  return {
-    id: null,
-    content: null,
-    imageUrls: [],
-    userId: null,
-    username: null,
-    userAvatarUrl: null,
-    locationName: null,
-    locationAddress: null,
-    latitude: null,
-    longitude: null,
-    gisPoint: null,
-    createdAt: null,
-    updatedAt: null,
-    likeCount: null,
-    commentCount: null,
-    ...overrides,
-  };
-}
-
-/**
- * @typedef {Object} LocationSuggestionDTO
- * @property {string|null} name
- * @property {string|null} address
- * @property {number|null} latitude
- * @property {number|null} longitude
- * @property {string|null} district
- * @property {string|null} city
- */
-
-export const LOCATION_SUGGESTION_DTO_FIELDS = Object.freeze([
-  'name',
-  'address',
-  'latitude',
-  'longitude',
-  'district',
-  'city',
-]);
-
-/**
- * @param {Partial<LocationSuggestionDTO>} [overrides={}]
- * @returns {LocationSuggestionDTO}
- */
-export function createLocationSuggestionDTO(overrides = {}) {
-  return {
-    name: null,
-    address: null,
-    latitude: null,
-    longitude: null,
-    district: null,
-    city: null,
-    ...overrides,
-  };
-}
-
-/**
  * @typedef {Object} MealCatalogItemDTO
  * @property {number|null} id
  * @property {string|null} code
@@ -851,6 +684,29 @@ export function createRecipeStepDTO(overrides = {}) {
 }
 
 /**
+ * @typedef {Object} RecipeStepTokenDTO
+ * @property {number|null} index
+ * @property {string|null} contentDelta
+ */
+
+export const RECIPE_STEP_TOKEN_DTO_FIELDS = Object.freeze([
+  'index',
+  'contentDelta',
+]);
+
+/**
+ * @param {Partial<RecipeStepTokenDTO>} [overrides={}]
+ * @returns {RecipeStepTokenDTO}
+ */
+export function createRecipeStepTokenDTO(overrides = {}) {
+  return {
+    index: null,
+    contentDelta: null,
+    ...overrides,
+  };
+}
+
+/**
  * @typedef {Object} VoiceTranscriptionResponseDTO
  * @property {string|null} text
  * @property {string|null} provider
@@ -1012,10 +868,6 @@ export const CONTRACT_MODEL_NAMES = Object.freeze([
   'SmsCodeRequest',
   'SmsLoginRequest',
   'UserDTO',
-  'CommentDTO',
-  'PostCollectionResponse',
-  'PostDTO',
-  'LocationSuggestionDTO',
   'MealCatalogItemDTO',
   'MealCatalogResponseDTO',
   'MealRecipeCollectionResponseDTO',
@@ -1028,6 +880,7 @@ export const CONTRACT_MODEL_NAMES = Object.freeze([
   'RecipePreferenceRequestDTO',
   'RecipePreferenceResponseDTO',
   'RecipeStepDTO',
+  'RecipeStepTokenDTO',
   'VoiceTranscriptionResponseDTO',
   'FileUploadResponse',
   'MessageResponse',
@@ -1046,10 +899,6 @@ export const CONTRACT_MODEL_FACTORIES = Object.freeze({
   SmsCodeRequest: createSmsCodeRequest,
   SmsLoginRequest: createSmsLoginRequest,
   UserDTO: createUserDTO,
-  CommentDTO: createCommentDTO,
-  PostCollectionResponse: createPostCollectionResponse,
-  PostDTO: createPostDTO,
-  LocationSuggestionDTO: createLocationSuggestionDTO,
   MealCatalogItemDTO: createMealCatalogItemDTO,
   MealCatalogResponseDTO: createMealCatalogResponseDTO,
   MealRecipeCollectionResponseDTO: createMealRecipeCollectionResponseDTO,
@@ -1062,6 +911,7 @@ export const CONTRACT_MODEL_FACTORIES = Object.freeze({
   RecipePreferenceRequestDTO: createRecipePreferenceRequestDTO,
   RecipePreferenceResponseDTO: createRecipePreferenceResponseDTO,
   RecipeStepDTO: createRecipeStepDTO,
+  RecipeStepTokenDTO: createRecipeStepTokenDTO,
   VoiceTranscriptionResponseDTO: createVoiceTranscriptionResponseDTO,
   FileUploadResponse: createFileUploadResponse,
   MessageResponse: createMessageResponse,

@@ -2,13 +2,6 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import { Alert, TouchableOpacity } from 'react-native';
 import MealFormScreen from '../../src/features/meal/screens/MealFormScreen';
-import { mealAPI } from '../../src/features/meal/api';
-
-jest.mock('../../src/features/meal/api', () => ({
-  mealAPI: {
-    recommendMeals: jest.fn(),
-  },
-}));
 
 const findTouchableByText = (renderer, label) =>
   renderer.root.findAllByType(TouchableOpacity).find((node) => {
@@ -34,37 +27,6 @@ const findTouchableByText = (renderer, label) =>
 describe('MealFormScreen', () => {
   beforeEach(() => {
     jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    mealAPI.recommendMeals.mockReset();
-    mealAPI.recommendMeals.mockResolvedValue({
-      data: {
-        requestId: 'req-1',
-        sourceText: '番茄牛腩',
-        form: {
-          sourceText: '番茄牛腩',
-          sourceMode: 'TEXT',
-          dishCount: 2,
-          totalCalories: 900,
-          staple: 'RICE',
-          flavor: 'LIGHT',
-        },
-        provider: 'mock',
-        items: [
-          {
-            id: 1,
-            title: '番茄牛腩',
-            summary: '酸甜开胃',
-            estimatedCalories: 480,
-            ingredients: [],
-            seasonings: [],
-            steps: [],
-            imageUrl: '',
-            imageStatus: 'OMITTED',
-            preference: null,
-          },
-        ],
-        emptyState: null,
-      },
-    });
   });
 
   afterEach(() => {
@@ -98,10 +60,10 @@ describe('MealFormScreen', () => {
     });
 
     expect(Alert.alert).toHaveBeenCalledWith('请先完善表单', '几个菜需要在 1 到 6 之间');
-    expect(mealAPI.recommendMeals).not.toHaveBeenCalled();
+    expect(navigation.navigate).not.toHaveBeenCalled();
   });
 
-  it('submits the recommendation request with the selected preferences', async () => {
+  it('navigates to meal results with the selected preferences and without flavor', async () => {
     const navigation = {
       navigate: jest.fn(),
     };
@@ -129,11 +91,9 @@ describe('MealFormScreen', () => {
     });
 
     const noodlesOption = findTouchableByText(renderer, '面条');
-    const appetizingOption = findTouchableByText(renderer, '开胃');
 
     await ReactTestRenderer.act(async () => {
       noodlesOption.props.onPress();
-      appetizingOption.props.onPress();
     });
 
     const submitButton = findTouchableByText(renderer, '生成菜谱');
@@ -141,26 +101,27 @@ describe('MealFormScreen', () => {
       submitButton.props.onPress();
     });
 
-    expect(mealAPI.recommendMeals).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(navigation.navigate).toHaveBeenCalledWith('MealResults', {
+      streamingRequest: {
         sourceText: '番茄牛腩',
         sourceMode: 'VOICE',
         catalogItemId: 101,
         dishCount: 3,
         totalCalories: 1200,
         staple: 'NOODLES',
-        flavor: 'APPETIZING',
         locale: 'zh-CN',
-      })
-    );
-    expect(navigation.navigate).toHaveBeenCalledWith(
-      'MealResults',
-      expect.objectContaining({
-        form: expect.objectContaining({
-          sourceMode: 'VOICE',
-          staple: 'NOODLES',
-        }),
-      })
-    );
+      },
+      form: {
+        sourceText: '番茄牛腩',
+        sourceMode: 'VOICE',
+        catalogItemId: 101,
+        dishCount: 3,
+        totalCalories: 1200,
+        staple: 'NOODLES',
+        locale: 'zh-CN',
+      },
+    });
+
+    expect(navigation.navigate.mock.calls[0][1].streamingRequest.flavor).toBeUndefined();
   });
 });

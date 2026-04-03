@@ -2,9 +2,6 @@ import UIKit
 import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
-#if canImport(HeroWechat)
-import HeroWechat
-#endif
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -17,6 +14,25 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    RCTSetCustomNSURLSessionConfigurationProvider {
+      let configuration = URLSessionConfiguration.default
+      configuration.allowsCellularAccess = true
+      if #available(iOS 13.0, *) {
+        configuration.allowsConstrainedNetworkAccess = true
+        configuration.allowsExpensiveNetworkAccess = true
+      }
+      if #available(iOS 11.0, *) {
+        configuration.waitsForConnectivity = true
+      }
+      configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+      configuration.timeoutIntervalForRequest = 60
+      configuration.timeoutIntervalForResource = 120
+      if #available(iOS 13.0, *) {
+        configuration.tlsMinimumSupportedProtocolVersion = .TLSv12
+      }
+      return configuration
+    }
+
     let delegate = ReactNativeDelegate()
     let factory = RCTReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
@@ -33,32 +49,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     )
 
     return true
-  }
-
-  func application(
-    _ application: UIApplication,
-    open url: URL,
-    options: [UIApplication.OpenURLOptionsKey: Any] = [:]
-  ) -> Bool {
-#if canImport(HeroWechat)
-    // HeroWechat owns WeChat callback routing; AppDelegate only forwards the
-    // URL so the bridge module can emit the correct JS-side event.
-    return RNTWechat.handleOpenURL(application, openURL: url, options: options)
-#else
-    return false
-#endif
-  }
-
-  func application(
-    _ application: UIApplication,
-    continue userActivity: NSUserActivity,
-    restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
-  ) -> Bool {
-#if canImport(HeroWechat)
-    return RNTWechat.handleOpenUniversalLink(userActivity)
-#else
-    return false
-#endif
   }
 }
 

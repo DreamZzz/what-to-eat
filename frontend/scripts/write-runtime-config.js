@@ -4,8 +4,6 @@ const path = require('path');
 const environment = process.argv[2] || 'local';
 const apiBaseUrl = process.argv[3];
 const proxyTarget = process.argv[4] || '';
-const wechatAppId = process.env.APP_SHARE_WECHAT_APP_ID || '';
-const wechatUniversalLink = process.env.APP_SHARE_WECHAT_UNIVERSAL_LINK || '';
 const demoTestLoginEnabled = process.env.APP_DEMO_TEST_LOGIN_ENABLED !== 'false';
 const sentryDsn = process.env.APP_SENTRY_DSN || '';
 
@@ -19,8 +17,6 @@ const runtimeConfig = {
   environment,
   apiBaseUrl,
   proxyTarget,
-  wechatAppId,
-  wechatUniversalLink,
   demoTestLoginEnabled,
   sentryDsn,
 };

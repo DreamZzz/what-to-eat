@@ -1,5 +1,5 @@
 import { buildImageUrl, buildImageUrls } from '../../src/utils/imageUrl';
-import { WEB_BASE_URL } from '../../src/config/api';
+import { WEB_BASE_URL } from '../../src/app/config/api';
 
 describe('buildImageUrl', () => {
   test('converts relative URL to absolute URL', () => {

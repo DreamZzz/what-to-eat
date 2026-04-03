@@ -2,8 +2,6 @@ package com.quickstart.template.contexts.account.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.quickstart.template.contexts.community.domain.Comment;
-import com.quickstart.template.contexts.community.domain.Post;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -18,7 +16,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 @Entity
 @Table(name = "users")
@@ -75,14 +72,6 @@ public class User implements UserDetails {
     
     @UpdateTimestamp
     private LocalDateTime updatedAt;
-    
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonIgnore
-    private List<Post> posts;
-    
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonIgnore
-    private List<Comment> comments;
     
     public User() {}
     
@@ -204,23 +193,6 @@ public class User implements UserDetails {
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
     }
-    
-    public List<Post> getPosts() {
-        return posts;
-    }
-    
-    public void setPosts(List<Post> posts) {
-        this.posts = posts;
-    }
-    
-    public List<Comment> getComments() {
-        return comments;
-    }
-    
-    public void setComments(List<Comment> comments) {
-        this.comments = comments;
-    }
-    
     // UserDetails methods
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

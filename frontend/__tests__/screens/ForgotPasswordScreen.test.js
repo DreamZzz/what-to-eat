@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import { Alert, TouchableOpacity } from 'react-native';
-import ForgotPasswordScreen from '../../src/screens/ForgotPasswordScreen';
+import ForgotPasswordScreen from '../../src/features/auth/screens/ForgotPasswordScreen';
 import { authAPI } from '../../src/services/api';
 
 jest.mock('../../src/services/api', () => ({
@@ -19,6 +19,7 @@ describe('ForgotPasswordScreen', () => {
   beforeEach(() => {
     jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
     authAPI.forgotPassword.mockReset();
     authAPI.resetPassword.mockReset();
   });
@@ -26,6 +27,7 @@ describe('ForgotPasswordScreen', () => {
   afterEach(() => {
     Alert.alert.mockRestore();
     console.error.mockRestore();
+    console.warn.mockRestore();
   });
 
   const pressButtonByLabel = async (renderer, label) => {

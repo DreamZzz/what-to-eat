@@ -120,11 +120,10 @@ export const useMealHomeViewModel = (navigation) => {
 
     if (bundle.matchedCatalog && bundle.items.length > 0) {
       try {
-        let nextHistory = recentInspirations;
-        for (const item of bundle.items) {
-          // eslint-disable-next-line no-await-in-loop
-          nextHistory = await recordInspirationChoice(item);
-        }
+        const nextHistory = await bundle.items.reduce(
+          (historyPromise, item) => historyPromise.then(() => recordInspirationChoice(item)),
+          Promise.resolve(recentInspirations)
+        );
         setRecentInspirations(nextHistory.slice(0, MEAL_CATALOG_HISTORY_LIMIT));
       } catch (err) {
         console.warn('Failed to record meal inspiration:', err);

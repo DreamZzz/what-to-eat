@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import { Text } from 'react-native';
-import ProfileScreen from '../../src/screens/ProfileScreen';
+import ProfileScreen from '../../src/features/profile/screens/ProfileScreen';
 import { mealAPI } from '../../src/features/meal/api';
 
 let mockAuthState = {

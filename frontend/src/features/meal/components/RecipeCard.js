@@ -72,6 +72,7 @@ const RecipeCard = ({
   const currentPreference = recipe.preference;
   const preferenceInfo = currentPreference ? preferenceMeta[currentPreference] : null;
   const { ingredientText, seasoningText } = buildIngredientSummary(recipe);
+  const [streamingStepDraft, setStreamingStepDraft] = useState(null);
 
   // Phase-2 lazy steps loading state
   const [localSteps, setLocalSteps] = useState(recipe.steps || []);
@@ -84,15 +85,35 @@ const RecipeCard = ({
     if (!recipe.id || stepsLoading) return;
     setStepsLoading(true);
     setStepsError(false);
+    setStreamingStepDraft(null);
     const accumulating = [];
     try {
       await mealAPI.streamRecipeSteps(recipe.id, {
+        onToken: (token) => {
+          const nextIndex = token?.index || accumulating.length + 1;
+          const nextDelta = token?.contentDelta || '';
+          if (!nextDelta) return;
+          setStreamingStepDraft((current) => {
+            const base = current && current.index === nextIndex
+              ? current
+              : { index: nextIndex, content: '' };
+            return {
+              index: nextIndex,
+              content: `${base.content}${nextDelta}`,
+            };
+          });
+        },
         onStep: (step) => {
           accumulating.push(step);
           setLocalSteps([...accumulating]);
+          setStreamingStepDraft(null);
         },
-        onComplete: () => setStepsLoading(false),
+        onComplete: () => {
+          setStreamingStepDraft(null);
+          setStepsLoading(false);
+        },
         onError: () => {
+          setStreamingStepDraft(null);
           setStepsLoading(false);
           setStepsError(true);
         },
@@ -156,6 +177,11 @@ const RecipeCard = ({
                       {`${step.index || index + 1}. ${step.content || step}`}
                     </Text>
                   ))}
+                  {streamingStepDraft?.content ? (
+                    <Text style={[styles.stepLine, styles.stepDraftLine]}>
+                      {`${streamingStepDraft.index || localSteps.length + 1}. ${streamingStepDraft.content}`}
+                    </Text>
+                  ) : null}
                   {stepsLoading ? (
                     <ActivityIndicator size="small" color="#C97C5D" style={styles.stepsLoader} />
                   ) : null}
@@ -163,7 +189,11 @@ const RecipeCard = ({
               ) : stepsLoading ? (
                 <View style={styles.stepsLoadingRow}>
                   <ActivityIndicator size="small" color="#C97C5D" />
-                  <Text style={styles.stepsLoadingText}>正在加载做法…</Text>
+                  <Text style={styles.stepsLoadingText}>
+                    {streamingStepDraft?.content
+                      ? `${streamingStepDraft.index || 1}. ${streamingStepDraft.content}`
+                      : '正在加载做法…'}
+                  </Text>
                 </View>
               ) : isPendingSteps ? (
                 <TouchableOpacity onPress={handleLoadSteps} style={styles.loadStepsButton}>
@@ -311,6 +341,9 @@ const styles = StyleSheet.create({
     color: '#3D2E24',
     fontSize: 14,
     lineHeight: 20,
+  },
+  stepDraftLine: {
+    color: '#9A5A28',
   },
   stepsLoader: {
     alignSelf: 'flex-start',

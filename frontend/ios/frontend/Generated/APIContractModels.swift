@@ -197,133 +197,6 @@ public struct UserDTO: Codable, Equatable, Sendable {
     }
 }
 
-public struct CommentDTO: Codable, Equatable, Sendable {
-    public var id: Int64?
-    public var content: String?
-    public var userId: Int64?
-    public var username: String?
-    public var userAvatarUrl: String?
-    public var postId: Int64?
-    public var createdAt: String?
-    public var updatedAt: String?
-    public var likeCount: Int?
-
-    public init(
-        id: Int64? = nil,
-        content: String? = nil,
-        userId: Int64? = nil,
-        username: String? = nil,
-        userAvatarUrl: String? = nil,
-        postId: Int64? = nil,
-        createdAt: String? = nil,
-        updatedAt: String? = nil,
-        likeCount: Int? = nil
-    ) {
-        self.id = id
-        self.content = content
-        self.userId = userId
-        self.username = username
-        self.userAvatarUrl = userAvatarUrl
-        self.postId = postId
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-        self.likeCount = likeCount
-    }
-}
-
-public struct PostCollectionResponse: Codable, Equatable, Sendable {
-    public var items: [PostDTO]?
-    public var pagination: PaginationMeta?
-    public var retrieval: RetrievalMeta?
-
-    public init(
-        items: [PostDTO]? = nil,
-        pagination: PaginationMeta? = nil,
-        retrieval: RetrievalMeta? = nil
-    ) {
-        self.items = items
-        self.pagination = pagination
-        self.retrieval = retrieval
-    }
-}
-
-public struct PostDTO: Codable, Equatable, Sendable {
-    public var id: Int64?
-    public var content: String?
-    public var imageUrls: [String]?
-    public var userId: Int64?
-    public var username: String?
-    public var userAvatarUrl: String?
-    public var locationName: String?
-    public var locationAddress: String?
-    public var latitude: Double?
-    public var longitude: Double?
-    public var gisPoint: String?
-    public var createdAt: String?
-    public var updatedAt: String?
-    public var likeCount: Int?
-    public var commentCount: Int?
-
-    public init(
-        id: Int64? = nil,
-        content: String? = nil,
-        imageUrls: [String]? = nil,
-        userId: Int64? = nil,
-        username: String? = nil,
-        userAvatarUrl: String? = nil,
-        locationName: String? = nil,
-        locationAddress: String? = nil,
-        latitude: Double? = nil,
-        longitude: Double? = nil,
-        gisPoint: String? = nil,
-        createdAt: String? = nil,
-        updatedAt: String? = nil,
-        likeCount: Int? = nil,
-        commentCount: Int? = nil
-    ) {
-        self.id = id
-        self.content = content
-        self.imageUrls = imageUrls
-        self.userId = userId
-        self.username = username
-        self.userAvatarUrl = userAvatarUrl
-        self.locationName = locationName
-        self.locationAddress = locationAddress
-        self.latitude = latitude
-        self.longitude = longitude
-        self.gisPoint = gisPoint
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-        self.likeCount = likeCount
-        self.commentCount = commentCount
-    }
-}
-
-public struct LocationSuggestionDTO: Codable, Equatable, Sendable {
-    public var name: String?
-    public var address: String?
-    public var latitude: Double?
-    public var longitude: Double?
-    public var district: String?
-    public var city: String?
-
-    public init(
-        name: String? = nil,
-        address: String? = nil,
-        latitude: Double? = nil,
-        longitude: Double? = nil,
-        district: String? = nil,
-        city: String? = nil
-    ) {
-        self.name = name
-        self.address = address
-        self.latitude = latitude
-        self.longitude = longitude
-        self.district = district
-        self.city = city
-    }
-}
-
 public struct MealCatalogItemDTO: Codable, Equatable, Sendable {
     public var id: Int64?
     public var code: String?
@@ -588,6 +461,19 @@ public struct RecipeStepDTO: Codable, Equatable, Sendable {
     ) {
         self.index = index
         self.content = content
+    }
+}
+
+public struct RecipeStepTokenDTO: Codable, Equatable, Sendable {
+    public var index: Int?
+    public var contentDelta: String?
+
+    public init(
+        index: Int? = nil,
+        contentDelta: String? = nil
+    ) {
+        self.index = index
+        self.contentDelta = contentDelta
     }
 }
 

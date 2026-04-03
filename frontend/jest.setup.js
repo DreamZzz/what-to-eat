@@ -22,38 +22,13 @@ jest.mock('@react-native-async-storage/async-storage', () => {
     removeItem: jest.fn(async (key) => {
       delete store[key];
     }),
+    multiRemove: jest.fn(async (keys) => {
+      (keys || []).forEach((key) => {
+        delete store[key];
+      });
+    }),
     clear: jest.fn(async () => {
       Object.keys(store).forEach((key) => delete store[key]);
     }),
   };
 });
-
-jest.mock('react-native-video', () => {
-  const React = require('react');
-
-  return ({ children, ...props }) => React.createElement('Video', props, children);
-});
-
-jest.mock('react-native-create-thumbnail', () => ({
-  createThumbnail: jest.fn(async ({ url }) => ({
-    path: url,
-    size: 0,
-    mime: 'image/jpeg',
-    width: 100,
-    height: 100,
-  })),
-}));
-
-jest.mock('react-native-share', () => ({
-  open: jest.fn(async () => undefined),
-}));
-
-jest.mock('@react-native-hero/wechat', () => ({
-  init: jest.fn(async () => undefined),
-  isInstalled: jest.fn(async () => ({ installed: true })),
-  shareText: jest.fn(async () => undefined),
-  SCENE: {
-    SESSION: 0,
-    TIMELINE: 1,
-  },
-}));

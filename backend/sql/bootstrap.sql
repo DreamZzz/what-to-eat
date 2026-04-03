@@ -8,7 +8,7 @@
 -- users:
 -- - Account and identity root table.
 -- - Stores login credentials, profile fields, region, and failed-login counters.
--- - Referenced by both the retained community demo flow and the meal generation flow.
+-- - Referenced by authentication, profile, favorites, and generated recipe ownership.
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -25,53 +25,6 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
--- posts:
--- - Legacy community demo post table kept for backend compatibility.
--- - Not used by the current What To Eat app primary flow, but still powers retained demo APIs.
-CREATE TABLE IF NOT EXISTS posts (
-    id BIGSERIAL PRIMARY KEY,
-    content VARCHAR(500) NOT NULL,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    location_name VARCHAR(255),
-    location_address VARCHAR(255),
-    latitude DOUBLE PRECISION,
-    longitude DOUBLE PRECISION,
-    gis_point VARCHAR(120),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    like_count INTEGER DEFAULT 0,
-    comment_count INTEGER DEFAULT 0
-);
-
--- post_images:
--- - Multi-value attachment table for community posts.
--- - One post can reference multiple image URLs.
-CREATE TABLE IF NOT EXISTS post_images (
-    post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
-    image_url VARCHAR(255) NOT NULL,
-    PRIMARY KEY (post_id, image_url)
-);
-
--- comments:
--- - Legacy community comment table.
--- - `parent_id` supports nested replies in the retained demo module.
-CREATE TABLE IF NOT EXISTS comments (
-    id BIGSERIAL PRIMARY KEY,
-    content VARCHAR(1000) NOT NULL,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
-    parent_id BIGINT REFERENCES comments(id) ON DELETE CASCADE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    like_count INTEGER DEFAULT 0
-);
-
-CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id);
-CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id);
-CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id);
-CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_id);
 
 -- meal_catalog_datasets:
 -- - Version registry for seeded base menu datasets.
@@ -134,7 +87,7 @@ CREATE TABLE IF NOT EXISTS meal_catalog_tags (
 
 -- meal_catalog_items:
 -- - Canonical base-menu dish table. One row equals one source dish.
--- - Stores dish naming, classification, cooking method, flavor summary, source order,
+-- - Stores dish naming, classification, cooking method, flavor-tag summary, source order,
 --   and the dataset version it belongs to.
 -- - "来点灵感" and future precise recommendation logic draw candidates from here.
 CREATE TABLE IF NOT EXISTS meal_catalog_items (
@@ -195,6 +148,8 @@ CREATE TABLE IF NOT EXISTS meal_catalog_item_tags (
 -- - Dish-image cache table keyed by normalized dish name.
 -- - Stores the original公网图片地址 and the persisted local/OSS image URL so repeated
 --   generations can reuse an existing dish image instead of searching again.
+-- - This is the persistence bridge for the async recipe-image flow:
+--   `POST /api/meals/recipes/{id}/image` -> search/download -> local or OSS storage -> cache hit reuse.
 CREATE TABLE IF NOT EXISTS meal_image_assets (
     id BIGSERIAL PRIMARY KEY,
     dish_name VARCHAR(200) NOT NULL,
@@ -214,6 +169,8 @@ CREATE TABLE IF NOT EXISTS meal_image_assets (
 -- - Stores the request context, model/provider output, generated steps/ingredients JSON,
 --   optional image info, and the user's preference (`LIKE` / `DISLIKE`).
 -- - `catalog_item_id` links a generated result back to the base-menu candidate that inspired it.
+-- - `image_status` and `steps_status` support the two-phase UX:
+--   first return recipe cards quickly, then lazily补图 / 补做法.
 CREATE TABLE IF NOT EXISTS meal_recipes (
     id BIGSERIAL PRIMARY KEY,
     request_id VARCHAR(64) NOT NULL,
@@ -225,7 +182,6 @@ CREATE TABLE IF NOT EXISTS meal_recipes (
     dish_count INTEGER NOT NULL,
     total_calories INTEGER,
     staple VARCHAR(40),
-    flavor VARCHAR(40),
     locale VARCHAR(20),
     provider VARCHAR(80) NOT NULL,
     title VARCHAR(200) NOT NULL,
@@ -247,6 +203,8 @@ ALTER TABLE meal_recipes
     ADD COLUMN IF NOT EXISTS catalog_item_id BIGINT;
 ALTER TABLE meal_recipes
     ADD COLUMN IF NOT EXISTS catalog_item_code VARCHAR(80);
+ALTER TABLE meal_recipes
+    DROP COLUMN IF EXISTS flavor;
 
 DO $$
 BEGIN

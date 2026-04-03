@@ -205,4 +205,3 @@ cd frontend
 | 菜谱图片 | `APP_LLM_IMAGE_PROVIDER` | `web-search` |
 | 短信登录 | `APP_AUTH_SMS_PROVIDER` | `aliyun`（凭据就绪后）|
 | 密码找回 | `APP_AUTH_PASSWORD_RESET_PROVIDER` | `mail`（SMTP 就绪后）|
-| 搜索 | `APP_SEARCH_PROVIDER` | `database`（无 ES 需求时）|

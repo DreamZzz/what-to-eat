@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
+import { Text } from 'react-native';
 import AppNavigator from '../src/app/navigation/AppNavigator';
 
 let mockAuthState = {
@@ -16,24 +17,24 @@ jest.mock('../src/features/profile/screens/ProfileScreen', () => function MockPr
   return null;
 });
 
-jest.mock('../src/screens/LoginScreen', () => function MockLoginScreen() {
-  const mockReact = require('react');
-  const { Text } = require('react-native');
-  return mockReact.createElement(Text, null, 'What To Eat');
+jest.mock('../src/features/auth/screens/LoginScreen', () => function MockLoginScreen() {
+  const ReactLocal = require('react');
+  const { Text: NativeText } = require('react-native');
+  return ReactLocal.createElement(NativeText, null, 'What To Eat');
 });
 
-jest.mock('../src/screens/RegisterScreen', () => function MockRegisterScreen() {
+jest.mock('../src/features/auth/screens/RegisterScreen', () => function MockRegisterScreen() {
   return null;
 });
 
-jest.mock('../src/screens/ForgotPasswordScreen', () => function MockForgotPasswordScreen() {
+jest.mock('../src/features/auth/screens/ForgotPasswordScreen', () => function MockForgotPasswordScreen() {
   return null;
 });
 
 jest.mock('../src/features/meal/screens/HomeScreen', () => function MockHomeScreen() {
-  const mockReact = require('react');
-  const { Text } = require('react-native');
-  return mockReact.createElement(Text, null, '今天想吃点什么');
+  const ReactLocal = require('react');
+  const { Text: NativeText } = require('react-native');
+  return ReactLocal.createElement(NativeText, null, '今天想吃点什么');
 });
 
 jest.mock('../src/features/meal/screens/MealFormScreen', () => function MockMealFormScreen() {
@@ -100,7 +101,7 @@ describe('AppNavigator', () => {
     });
 
     const title = renderer.root
-      .findAllByType('Text')
+      .findAllByType(Text)
       .find((node) => node.props.children === 'What To Eat');
 
     expect(title).toBeTruthy();
@@ -122,7 +123,7 @@ describe('AppNavigator', () => {
     });
 
     const headline = renderer.root
-      .findAllByType('Text')
+      .findAllByType(Text)
       .find((node) => node.props.children === '今天想吃点什么');
 
     expect(headline).toBeTruthy();

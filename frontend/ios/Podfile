@@ -4,10 +4,17 @@ require Pod::Executable.execute_command('node', ['-p',
     "react-native/scripts/react_native_pods.rb",
     {paths: [process.argv[1]]},
   )', __dir__]).strip
-require 'shellwords'
 
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
+
+# Personal-team device builds have shown unstable runtime behaviour with the
+# RN 0.84 prebuilt iOS frameworks (duplicate React SwiftUI classes embedded in
+# both React.framework and the app binary). Force source builds for RN core and
+# its native dependencies so Release/device builds use one consistent set of
+# symbols.
+ENV['RCT_USE_PREBUILT_RNCORE'] = '0'
+ENV['RCT_USE_RN_DEP'] = '0'
 
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
@@ -35,41 +42,8 @@ target 'frontend' do
       # :ccache_enabled => true
     )
 
-    # react-native-share 12.2.x advertises a new-arch spec name in package.json,
-    # but its iOS pod does not generate/link RNShareSpec.h for RN 0.84 pod builds.
-    # Keep the rest of the app on the new architecture and compile RNShare as a
-    # legacy bridge pod until the library catches up.
-    installer.pods_project.targets.each do |target|
-      next unless target.name == 'RNShare'
-
-      target.build_configurations.each do |build_configuration|
-        %w[OTHER_CPLUSPLUSFLAGS OTHER_SWIFT_FLAGS].each do |setting|
-          value = build_configuration.build_settings[setting]
-          next unless value.is_a?(String) && value.include?('RCT_NEW_ARCH_ENABLED')
-
-          build_configuration.build_settings[setting] =
-            value.gsub(/\s*-DRCT_NEW_ARCH_ENABLED(?:=1)?\b/, '')
-        end
-      end
-
-      target.source_build_phase.files.each do |build_file|
-        compiler_flags = build_file.settings&.fetch('COMPILER_FLAGS', nil)
-        next unless compiler_flags
-
-        flags = Shellwords.split(compiler_flags).reject { |flag| flag.include?('RCT_NEW_ARCH_ENABLED') }
-
-        if flags.empty?
-          build_file.settings.delete('COMPILER_FLAGS')
-        else
-          build_file.settings['COMPILER_FLAGS'] = flags.join(' ')
-        end
-      end
-    end
-
     codegen_header_paths_by_target = {
-      'RNShare' => ['$(PODS_ROOT)/Headers/Public/ReactCodegen/RNShareSpec'],
       'RNVectorIcons' => ['$(PODS_ROOT)/Headers/Public/ReactCodegen/RNVectorIconsSpec'],
-      'react-native-image-picker' => ['$(PODS_ROOT)/Headers/Public/ReactCodegen/RNImagePickerSpec'],
     }
 
     installer.pods_project.targets.each do |target|

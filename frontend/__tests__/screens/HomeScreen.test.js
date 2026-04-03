@@ -2,7 +2,7 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import HomeScreen from '../../src/screens/HomeScreen';
+import HomeScreen from '../../src/features/meal/screens/HomeScreen';
 import { mealAPI, voiceAPI } from '../../src/features/meal/api';
 import {
   requestVoicePermission,
@@ -90,7 +90,7 @@ describe('HomeScreen', () => {
     Alert.alert.mockRestore();
   });
 
-  it('uses a catalog candidate when the inspiration button is pressed', async () => {
+  it('creates a bundled inspiration when the inspiration button is pressed with no input', async () => {
     const navigation = {
       navigate: jest.fn(),
     };
@@ -98,13 +98,6 @@ describe('HomeScreen', () => {
     let renderer;
     await ReactTestRenderer.act(async () => {
       renderer = ReactTestRenderer.create(<HomeScreen navigation={navigation} />);
-      await flushMicrotasks();
-    });
-
-    const input = renderer.root.findByProps({ testID: 'home-text-input' });
-
-    await ReactTestRenderer.act(async () => {
-      input.props.onChangeText('番茄牛腩');
       await flushMicrotasks();
     });
 
@@ -120,9 +113,10 @@ describe('HomeScreen', () => {
     expect(navigation.navigate).toHaveBeenCalledWith(
       'MealForm',
       expect.objectContaining({
-        sourceText: '番茄牛腩',
+        sourceText: '番茄牛腩、清炒西兰花',
         sourceMode: 'TEXT',
-        catalogItemId: 101,
+        catalogItemId: null,
+        dishCount: 2,
       })
     );
   });
@@ -180,12 +174,8 @@ describe('HomeScreen', () => {
       await flushMicrotasks();
     });
 
-    const inspirationButton = renderer.root.findByProps({
-      testID: 'home-inspiration-button',
-    });
-
     await ReactTestRenderer.act(async () => {
-      inspirationButton.props.onPress();
+      input.props.onSubmitEditing();
       await flushMicrotasks();
     });
 
@@ -270,11 +260,8 @@ describe('HomeScreen', () => {
     const textInput = renderer.root.findByProps({ testID: 'home-text-input' });
     expect(textInput.props.value).toBe('番茄牛腩');
 
-    const inspirationButton = renderer.root.findByProps({
-      testID: 'home-inspiration-button',
-    });
     await ReactTestRenderer.act(async () => {
-      inspirationButton.props.onPress();
+      textInput.props.onSubmitEditing();
       await flushMicrotasks();
     });
 
@@ -283,7 +270,7 @@ describe('HomeScreen', () => {
       expect.objectContaining({
         sourceText: '番茄牛腩',
         sourceMode: 'VOICE',
-        catalogItemId: 101,
+        catalogItemId: null,
       })
     );
   });

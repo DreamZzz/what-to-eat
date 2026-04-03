@@ -8,6 +8,7 @@ import com.quickstart.template.contexts.meal.api.dto.MealRecipeCollectionRespons
 import com.quickstart.template.contexts.meal.api.dto.RecipeDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeImageResponseDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipePreferenceRequestDTO;
+import com.quickstart.template.contexts.meal.api.dto.RecipeStepTokenDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipePreferenceResponseDTO;
 import com.quickstart.template.contexts.meal.application.MealGenerationException;
 import com.quickstart.template.contexts.meal.application.MealService;
@@ -144,7 +145,13 @@ public class MealController {
 
         CompletableFuture.runAsync(() -> {
             try {
-                mealService.streamRecipeSteps(recipeId, userId, locale, step -> {
+                mealService.streamRecipeSteps(recipeId, userId, locale, token -> {
+                    try {
+                        emitter.send(SseEmitter.event().name("token").data(token, MediaType.APPLICATION_JSON));
+                    } catch (IOException e) {
+                        throw new RuntimeException("SSE write failed", e);
+                    }
+                }, step -> {
                     try {
                         emitter.send(SseEmitter.event().name("step").data(step, MediaType.APPLICATION_JSON));
                     } catch (IOException e) {

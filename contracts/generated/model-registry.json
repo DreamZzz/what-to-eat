@@ -12,7 +12,7 @@
       "name": "User",
       "entity": "backend/src/main/java/com/quickstart/template/contexts/account/domain/User.java",
       "dto": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/UserDTO.java",
-      "entityHash": "070b337bb2fad4157ecc5bf584479877ad204851213a8d9dfe0f12011e04dc87",
+      "entityHash": "0e27826ed0c46b989cf364e940bd16201cc7e4f157090b38a83961a5f992af94",
       "dtoHash": "3893108b491f47861ff33e3883fa853adb32e5d8af14d6aa6b4e73cb10f0f810",
       "expectedSharedFields": [
         {
@@ -65,105 +65,6 @@
         }
       ],
       "dtoOnlyFields": [],
-      "problems": []
-    },
-    {
-      "name": "Post",
-      "entity": "backend/src/main/java/com/quickstart/template/contexts/community/domain/Post.java",
-      "dto": "backend/src/main/java/com/quickstart/template/contexts/community/api/dto/PostDTO.java",
-      "entityHash": "80045be8db390651ef293d3574d22a9f7d1b275c1c22646a74e2dc0e4d07458e",
-      "dtoHash": "0a4a46de3d116a3382e1d747d0c9ac1fe0f12f10807ed2d0be93c0fff8a53ec1",
-      "expectedSharedFields": [
-        {
-          "name": "id",
-          "javaType": "Long"
-        },
-        {
-          "name": "content",
-          "javaType": "String"
-        },
-        {
-          "name": "imageUrls",
-          "javaType": "List<String>"
-        },
-        {
-          "name": "locationName",
-          "javaType": "String"
-        },
-        {
-          "name": "locationAddress",
-          "javaType": "String"
-        },
-        {
-          "name": "latitude",
-          "javaType": "Double"
-        },
-        {
-          "name": "longitude",
-          "javaType": "Double"
-        },
-        {
-          "name": "gisPoint",
-          "javaType": "String"
-        },
-        {
-          "name": "createdAt",
-          "javaType": "LocalDateTime"
-        },
-        {
-          "name": "updatedAt",
-          "javaType": "LocalDateTime"
-        },
-        {
-          "name": "likeCount",
-          "javaType": "Integer"
-        },
-        {
-          "name": "commentCount",
-          "javaType": "Integer"
-        }
-      ],
-      "dtoOnlyFields": [
-        "userId",
-        "username",
-        "userAvatarUrl"
-      ],
-      "problems": []
-    },
-    {
-      "name": "Comment",
-      "entity": "backend/src/main/java/com/quickstart/template/contexts/community/domain/Comment.java",
-      "dto": "backend/src/main/java/com/quickstart/template/contexts/community/api/dto/CommentDTO.java",
-      "entityHash": "e9e52da280fa9435b8d02f66729dc404a346c25190a1e4656d2ed69a2f80c1e8",
-      "dtoHash": "128aabfbe2c36bf1cae90803ab2e81355cc51f9137de25154a7b1d3c891c04c5",
-      "expectedSharedFields": [
-        {
-          "name": "id",
-          "javaType": "Long"
-        },
-        {
-          "name": "content",
-          "javaType": "String"
-        },
-        {
-          "name": "createdAt",
-          "javaType": "LocalDateTime"
-        },
-        {
-          "name": "updatedAt",
-          "javaType": "LocalDateTime"
-        },
-        {
-          "name": "likeCount",
-          "javaType": "Integer"
-        }
-      ],
-      "dtoOnlyFields": [
-        "userId",
-        "username",
-        "userAvatarUrl",
-        "postId"
-      ],
       "problems": []
     }
   ],
@@ -403,166 +304,6 @@
         {
           "name": "updatedAt",
           "javaType": "LocalDateTime"
-        }
-      ]
-    },
-    {
-      "className": "CommentDTO",
-      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/community/api/dto/CommentDTO.java",
-      "sourceHash": "128aabfbe2c36bf1cae90803ab2e81355cc51f9137de25154a7b1d3c891c04c5",
-      "fields": [
-        {
-          "name": "id",
-          "javaType": "Long"
-        },
-        {
-          "name": "content",
-          "javaType": "String"
-        },
-        {
-          "name": "userId",
-          "javaType": "Long"
-        },
-        {
-          "name": "username",
-          "javaType": "String"
-        },
-        {
-          "name": "userAvatarUrl",
-          "javaType": "String"
-        },
-        {
-          "name": "postId",
-          "javaType": "Long"
-        },
-        {
-          "name": "createdAt",
-          "javaType": "LocalDateTime"
-        },
-        {
-          "name": "updatedAt",
-          "javaType": "LocalDateTime"
-        },
-        {
-          "name": "likeCount",
-          "javaType": "Integer"
-        }
-      ]
-    },
-    {
-      "className": "PostCollectionResponse",
-      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/community/api/dto/PostCollectionResponse.java",
-      "sourceHash": "87564beea6f7d8cf728b9d0ae88c1aed87a4e3286d86f3f6ca58630b0119d2ab",
-      "fields": [
-        {
-          "name": "items",
-          "javaType": "List<PostDTO>"
-        },
-        {
-          "name": "pagination",
-          "javaType": "PaginationMeta"
-        },
-        {
-          "name": "retrieval",
-          "javaType": "RetrievalMeta"
-        }
-      ]
-    },
-    {
-      "className": "PostDTO",
-      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/community/api/dto/PostDTO.java",
-      "sourceHash": "0a4a46de3d116a3382e1d747d0c9ac1fe0f12f10807ed2d0be93c0fff8a53ec1",
-      "fields": [
-        {
-          "name": "id",
-          "javaType": "Long"
-        },
-        {
-          "name": "content",
-          "javaType": "String"
-        },
-        {
-          "name": "imageUrls",
-          "javaType": "List<String>"
-        },
-        {
-          "name": "userId",
-          "javaType": "Long"
-        },
-        {
-          "name": "username",
-          "javaType": "String"
-        },
-        {
-          "name": "userAvatarUrl",
-          "javaType": "String"
-        },
-        {
-          "name": "locationName",
-          "javaType": "String"
-        },
-        {
-          "name": "locationAddress",
-          "javaType": "String"
-        },
-        {
-          "name": "latitude",
-          "javaType": "Double"
-        },
-        {
-          "name": "longitude",
-          "javaType": "Double"
-        },
-        {
-          "name": "gisPoint",
-          "javaType": "String"
-        },
-        {
-          "name": "createdAt",
-          "javaType": "LocalDateTime"
-        },
-        {
-          "name": "updatedAt",
-          "javaType": "LocalDateTime"
-        },
-        {
-          "name": "likeCount",
-          "javaType": "Integer"
-        },
-        {
-          "name": "commentCount",
-          "javaType": "Integer"
-        }
-      ]
-    },
-    {
-      "className": "LocationSuggestionDTO",
-      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/location/api/dto/LocationSuggestionDTO.java",
-      "sourceHash": "52278a47de6da74355689013f8b79e36f1eed3bf09143c386a03589ab9416595",
-      "fields": [
-        {
-          "name": "name",
-          "javaType": "String"
-        },
-        {
-          "name": "address",
-          "javaType": "String"
-        },
-        {
-          "name": "latitude",
-          "javaType": "Double"
-        },
-        {
-          "name": "longitude",
-          "javaType": "Double"
-        },
-        {
-          "name": "district",
-          "javaType": "String"
-        },
-        {
-          "name": "city",
-          "javaType": "String"
         }
       ]
     },
@@ -890,6 +631,21 @@
         },
         {
           "name": "content",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "RecipeStepTokenDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/RecipeStepTokenDTO.java",
+      "sourceHash": "2095b48cb9e5ea310d9a487fefb6c5464bb3b01415a2b0828681682c46513537",
+      "fields": [
+        {
+          "name": "index",
+          "javaType": "Integer"
+        },
+        {
+          "name": "contentDelta",
           "javaType": "String"
         }
       ]

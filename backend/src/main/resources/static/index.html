@@ -440,17 +440,8 @@
               <select id="stapleSelect">
                 <option value="RICE">RICE</option>
                 <option value="NOODLES">NOODLES</option>
-                <option value="POTATO">POTATO</option>
                 <option value="COARSE_GRAINS">COARSE_GRAINS</option>
-                <option value="NONE">NONE</option>
-              </select>
-            </label>
-            <label>
-              口味
-              <select id="flavorSelect">
-                <option value="LIGHT">LIGHT</option>
-                <option value="APPETIZING">APPETIZING</option>
-                <option value="RICH">RICH</option>
+                <option value="NO_STAPLE">NO_STAPLE</option>
               </select>
             </label>
             <label>
@@ -563,7 +554,6 @@
       totalCaloriesInput: document.getElementById('totalCaloriesInput'),
       localeInput: document.getElementById('localeInput'),
       stapleSelect: document.getElementById('stapleSelect'),
-      flavorSelect: document.getElementById('flavorSelect'),
       recipeIdInput: document.getElementById('recipeIdInput'),
       preferenceRecipeIdInput: document.getElementById('preferenceRecipeIdInput'),
       preferenceSelect: document.getElementById('preferenceSelect'),
@@ -711,7 +701,6 @@
         dishCount: Number(els.dishCountInput.value || 0),
         totalCalories: Number(els.totalCaloriesInput.value || 0),
         staple: els.stapleSelect.value,
-        flavor: els.flavorSelect.value,
         locale: els.localeInput.value.trim() || 'zh-CN',
       };
       try {
@@ -851,7 +840,6 @@
       els.totalCaloriesInput.value = '900';
       els.localeInput.value = 'zh-CN';
       els.stapleSelect.value = 'RICE';
-      els.flavorSelect.value = 'LIGHT';
       els.favoritesPageInput.value = '0';
       els.favoritesSizeInput.value = '10';
     }

@@ -65,7 +65,8 @@ PROXY_TARGET=""
 PROXY_BIND_HOST="127.0.0.1"
 CONFIG_PLATFORM="ios"
 TARGET_DEVICE_NAME=""
-IOS_APP_BUNDLE_ID="${IOS_APP_BUNDLE_ID:-com.quickstart.template.frontend}"
+IOS_APP_BUNDLE_ID="${IOS_APP_BUNDLE_ID:-com.868299.eat}"
+IOS_DEVELOPMENT_TEAM="${IOS_DEVELOPMENT_TEAM:-}"
 DEFAULT_REMOTE_API_BASE_URL="${APP_REMOTE_API_BASE_URL:-https://api.example.com}"
 DEFAULT_REMOTE_API_BASE_URL="${DEFAULT_REMOTE_API_BASE_URL%/}"
 DEFAULT_REMOTE_PROXY_TARGET="${APP_REMOTE_PROXY_TARGET:-$DEFAULT_REMOTE_API_BASE_URL}"
@@ -325,71 +326,6 @@ write_runtime_config() {
     fi
 }
 
-set_or_add_plist_string() {
-    local plist_path="$1"
-    local key="$2"
-    local value="$3"
-    local plistbuddy="/usr/libexec/PlistBuddy"
-
-    if $plistbuddy -c "Set :$key $value" "$plist_path" >/dev/null 2>&1; then
-        return 0
-    fi
-
-    $plistbuddy -c "Add :$key string $value" "$plist_path"
-}
-
-sync_ios_wechat_config() {
-    if [ "$(uname)" != "Darwin" ]; then
-        return 0
-    fi
-
-    local plist_path="ios/frontend/Info.plist"
-    local entitlements_path="ios/frontend/frontend.entitlements"
-    local plistbuddy="/usr/libexec/PlistBuddy"
-    local wechat_app_id="${APP_SHARE_WECHAT_APP_ID:-}"
-    local wechat_universal_link="${APP_SHARE_WECHAT_UNIVERSAL_LINK:-}"
-    local universal_link_host=""
-
-    if [ ! -x "$plistbuddy" ] || [ ! -f "$plist_path" ]; then
-        return 0
-    fi
-
-    set_or_add_plist_string "$plist_path" "WechatAppID" "$wechat_app_id"
-    set_or_add_plist_string "$plist_path" "WechatUniversalLink" "$wechat_universal_link"
-
-    $plistbuddy -c "Delete :CFBundleURLTypes" "$plist_path" >/dev/null 2>&1 || true
-
-    if [ -n "$wechat_app_id" ]; then
-        $plistbuddy -c "Add :CFBundleURLTypes array" "$plist_path"
-        $plistbuddy -c "Add :CFBundleURLTypes:0 dict" "$plist_path"
-        $plistbuddy -c "Add :CFBundleURLTypes:0:CFBundleTypeRole string Editor" "$plist_path"
-        $plistbuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string wechat" "$plist_path"
-        $plistbuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$plist_path"
-        $plistbuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string $wechat_app_id" "$plist_path"
-    else
-        print_warning "未配置 APP_SHARE_WECHAT_APP_ID，微信好友/朋友圈分享将保持不可用，系统分享不受影响"
-    fi
-
-    if [ -n "$wechat_universal_link" ]; then
-        universal_link_host=$(printf '%s' "$wechat_universal_link" | sed -nE 's#^https?://([^/]+)/?.*$#\1#p')
-    fi
-
-    if [ -f "$entitlements_path" ]; then
-        $plistbuddy -c "Delete :com.apple.developer.associated-domains" "$entitlements_path" >/dev/null 2>&1 || true
-
-        if [ -n "$universal_link_host" ]; then
-            $plistbuddy -c "Add :com.apple.developer.associated-domains array" "$entitlements_path"
-            $plistbuddy -c "Add :com.apple.developer.associated-domains:0 string applinks:$universal_link_host" "$entitlements_path"
-        fi
-    fi
-
-    if [ -z "$wechat_universal_link" ]; then
-        print_warning "未配置 APP_SHARE_WECHAT_UNIVERSAL_LINK，iOS 微信直分享将保持不可用，系统分享不受影响"
-    elif [ -z "$universal_link_host" ]; then
-        print_warning "APP_SHARE_WECHAT_UNIVERSAL_LINK 不是合法的 https URL，无法写入 Associated Domains"
-    fi
-}
-
 stop_existing_proxy() {
     local proxy_pids
     proxy_pids=$(lsof -ti tcp:18080 2>/dev/null || true)
@@ -406,12 +342,17 @@ start_api_proxy_background() {
     stop_existing_proxy
 
     rm -f /tmp/social-app-api-proxy.log 2>/dev/null || true
-    DEV_PROXY_TARGET_HOST=$(echo "$PROXY_TARGET" | sed -E 's#^http://([^:/]+).*$#\1#')
-    DEV_PROXY_TARGET_PORT=$(echo "$PROXY_TARGET" | sed -nE 's#^http://[^:/]+:([0-9]+).*$#\1#p')
+    DEV_PROXY_TARGET_PROTOCOL=$(echo "$PROXY_TARGET" | sed -nE 's#^(https?)://.*$#\1#p')
+    DEV_PROXY_TARGET_HOST=$(echo "$PROXY_TARGET" | sed -E 's#^https?://([^:/]+).*$#\1#')
+    DEV_PROXY_TARGET_PORT=$(echo "$PROXY_TARGET" | sed -nE 's#^https?://[^:/]+:([0-9]+).*$#\1#p')
     if [ -z "$DEV_PROXY_TARGET_PORT" ]; then
-        DEV_PROXY_TARGET_PORT=80
+        if [ "$DEV_PROXY_TARGET_PROTOCOL" = "https" ]; then
+            DEV_PROXY_TARGET_PORT=443
+        else
+            DEV_PROXY_TARGET_PORT=80
+        fi
     fi
-    DEV_PROXY_BIND_HOST="$PROXY_BIND_HOST" DEV_PROXY_TARGET_HOST="$DEV_PROXY_TARGET_HOST" DEV_PROXY_TARGET_PORT="$DEV_PROXY_TARGET_PORT" \
+    DEV_PROXY_BIND_HOST="$PROXY_BIND_HOST" DEV_PROXY_TARGET_PROTOCOL="$DEV_PROXY_TARGET_PROTOCOL" DEV_PROXY_TARGET_HOST="$DEV_PROXY_TARGET_HOST" DEV_PROXY_TARGET_PORT="$DEV_PROXY_TARGET_PORT" \
         nohup node scripts/dev-proxy.js > /tmp/social-app-api-proxy.log 2>&1 &
     PROXY_PID=$!
 
@@ -577,6 +518,22 @@ check_ios_device_signing_ready() {
     fi
 }
 
+build_ios_extra_params() {
+    local params
+    params="-allowProvisioningUpdates"
+
+    if [ -n "$IOS_DEVELOPMENT_TEAM" ]; then
+        params="$params DEVELOPMENT_TEAM=$IOS_DEVELOPMENT_TEAM"
+    fi
+
+    if [ -n "$IOS_APP_BUNDLE_ID" ]; then
+        params="$params PRODUCT_BUNDLE_IDENTIFIER=$IOS_APP_BUNDLE_ID"
+    fi
+
+    params="$params CODE_SIGN_STYLE=Automatic"
+    printf '%s' "$params"
+}
+
 check_ios_simulator_runtime_ready() {
     local simulator_sdk_version
 
@@ -614,7 +571,6 @@ start_ios() {
     
     print_info "启动iOS开发环境..."
     write_runtime_config
-    sync_ios_wechat_config
     start_api_proxy_background
     
     # 检查Xcode
@@ -672,7 +628,6 @@ start_device() {
 
     print_info "启动iPhone真机开发环境..."
     write_runtime_config
-    sync_ios_wechat_config
 
     if ! xcodebuild -version >/dev/null 2>&1; then
         print_error "Xcode未安装或未配置"
@@ -697,9 +652,17 @@ start_device() {
     fi
 
     print_info "目标设备: $resolved_device_name"
+    print_info "真机 Bundle ID: $IOS_APP_BUNDLE_ID"
+    if [ -n "$IOS_DEVELOPMENT_TEAM" ]; then
+        print_info "真机 Development Team: $IOS_DEVELOPMENT_TEAM"
+    else
+        print_warning "未设置 IOS_DEVELOPMENT_TEAM，将使用 Xcode 工程中的默认 Team"
+    fi
     local device_run_log
     device_run_log="/tmp/social-app-device-run.log"
     rm -f "$device_run_log" 2>/dev/null || true
+    local ios_extra_params
+    ios_extra_params="$(build_ios_extra_params)"
 
     if [ -n "$PROXY_TARGET" ]; then
         # Device-local mode still embeds the JS bundle, but it needs a relay so the
@@ -710,11 +673,11 @@ start_device() {
     if [ "$APP_ENV" = "remote" ]; then
         print_info "远端真机联调使用 Release 构建，不依赖 Metro"
         npx react-native run-ios --mode Release --no-packager --device "$resolved_device_name" \
-            --extra-params "-allowProvisioningUpdates" 2>&1 | tee "$device_run_log"
+            --extra-params "$ios_extra_params" 2>&1 | tee "$device_run_log"
     else
         print_info "真机本地联调使用 Release 构建，并通过局域网代理访问本机后端"
         npx react-native run-ios --mode Release --no-packager --device "$resolved_device_name" \
-            --extra-params "-allowProvisioningUpdates" 2>&1 | tee "$device_run_log"
+            --extra-params "$ios_extra_params" 2>&1 | tee "$device_run_log"
     fi
 
     if grep -q "Could not find a physical device" "$device_run_log"; then

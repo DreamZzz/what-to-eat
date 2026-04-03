@@ -4,6 +4,7 @@ import com.quickstart.template.contexts.meal.api.dto.MealRecommendationRequestDT
 import com.quickstart.template.contexts.meal.api.dto.RecipeDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeIngredientDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeStepDTO;
+import com.quickstart.template.contexts.meal.api.dto.RecipeStepTokenDTO;
 import com.quickstart.template.contexts.meal.application.MealGenerationResult;
 import java.util.function.Consumer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -126,6 +127,29 @@ public class MockMealGenerationProvider implements MealGenerationProvider {
         for (RecipeStepDTO step : steps) {
             onStep.accept(step);
             try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+        }
+    }
+
+    @Override
+    public void streamRecipeSteps(
+            RecipeDTO recipe,
+            String locale,
+            Consumer<RecipeStepTokenDTO> onToken,
+            Consumer<RecipeStepDTO> onStep
+    ) {
+        String title = recipe.getTitle() != null ? recipe.getTitle() : "这道菜";
+        List<RecipeStepDTO> steps = buildSteps(title, 0);
+        for (RecipeStepDTO step : steps) {
+            String content = step.getContent() != null ? step.getContent() : "";
+            for (int i = 0; i < content.length(); i += 4) {
+                RecipeStepTokenDTO token = new RecipeStepTokenDTO();
+                token.setIndex(step.getIndex());
+                token.setContentDelta(content.substring(i, Math.min(i + 4, content.length())));
+                onToken.accept(token);
+                try { Thread.sleep(40); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+            }
+            onStep.accept(step);
+            try { Thread.sleep(120); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
         }
     }
 

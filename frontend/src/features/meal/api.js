@@ -42,7 +42,7 @@ export const mealAPI = {
    * Streaming recommendation via SSE (XHR-based for React Native compatibility).
    * Calls onRecipe for each recipe as it arrives, onComplete when done, onError on failure.
    */
-  streamRecommendations: async (payload, { onRecipe, onComplete, onError }) => {
+  streamRecommendations: async (payload, { onRecipe, onComplete, onError, shouldStop }) => {
     let token;
     try {
       token = await AsyncStorage.getItem('auth_token');
@@ -65,6 +65,7 @@ export const mealAPI = {
       let processedLength = 0;
       let receivedData = false;
       let completed = false;
+      let cancelledByClient = false;
 
       const processBuffer = () => {
         const lines = buffer.split('\n');
@@ -82,6 +83,14 @@ export const mealAPI = {
                   onError(new Error(parsed.message || 'Server error'));
                 } else {
                   onRecipe(parsed);
+                  if (shouldStop?.(parsed) === true) {
+                    cancelledByClient = true;
+                    completed = true;
+                    xhr.abort();
+                    onComplete();
+                    resolve();
+                    return;
+                  }
                 }
               } catch {
                 // skip malformed
@@ -111,6 +120,10 @@ export const mealAPI = {
       };
 
       xhr.onerror = () => {
+        if (cancelledByClient) {
+          resolve();
+          return;
+        }
         if (completed) {
           resolve();
           return;
@@ -134,6 +147,12 @@ export const mealAPI = {
         resolve();
       };
 
+      xhr.onabort = () => {
+        if (cancelledByClient) {
+          resolve();
+        }
+      };
+
       xhr.timeout = 180000;
       xhr.send(JSON.stringify(payload));
     });
@@ -143,7 +162,7 @@ export const mealAPI = {
    * Phase-2 steps streaming: subscribe to cooking steps for a recipe via SSE.
    * Calls onStep for each step as it arrives, onComplete when done, onError on failure.
    */
-  streamRecipeSteps: async (recipeId, { onStep, onComplete, onError }) => {
+  streamRecipeSteps: async (recipeId, { onToken, onStep, onComplete, onError }) => {
     let token;
     try {
       token = await AsyncStorage.getItem('auth_token');
@@ -181,6 +200,8 @@ export const mealAPI = {
                 const parsed = JSON.parse(data);
                 if (lastEventName === 'error') {
                   onError(new Error(parsed.message || 'Server error'));
+                } else if (lastEventName === 'token') {
+                  onToken?.(parsed);
                 } else if (lastEventName === 'step') {
                   onStep(parsed);
                 }

@@ -64,7 +64,6 @@ curl -fsS -X POST "$BASE_URL/api/meals/recommendations" \
     "dishCount": 2,
     "totalCalories": 900,
     "staple": "RICE",
-    "flavor": "LIGHT",
     "locale": "zh-CN"
   }' >/dev/null
 

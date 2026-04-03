@@ -6,8 +6,11 @@ let unauthorizedHandler = null;
 
 export const generateRequestId = () =>
   'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = (Math.random() * 16) | 0;
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+    const randomNibble = Math.floor(Math.random() * 16);
+    const value = c === 'x'
+      ? randomNibble
+      : 8 + Math.floor(Math.random() * 4);
+    return value.toString(16);
   });
 
 const apiClient = axios.create({
@@ -38,7 +41,7 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      await AsyncStorage.multiRemove(['auth_token', 'user']);
+      await AsyncStorage.multiRemove(['auth_token', 'user', 'auth_scope']);
       if (typeof unauthorizedHandler === 'function') {
         await unauthorizedHandler(error);
       }

@@ -1,6 +1,13 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerUnauthorizedHandler } from '../../shared/api/client';
+import runtimeConfig from '../config/runtime';
+
+const AUTH_SCOPE_KEY = 'auth_scope';
+const AUTH_SCOPE_VALUE = [
+  runtimeConfig.environment || 'local',
+  runtimeConfig.proxyTarget || runtimeConfig.apiBaseUrl || '',
+].join('|');
 
 const AuthContext = createContext({});
 
@@ -31,6 +38,13 @@ export const AuthProvider = ({ children }) => {
     try {
       const storedToken = await AsyncStorage.getItem('auth_token');
       const storedUser = await AsyncStorage.getItem('user');
+      const storedScope = await AsyncStorage.getItem(AUTH_SCOPE_KEY);
+
+      if (storedToken && storedUser && storedUser.trim() !== '' && storedScope !== AUTH_SCOPE_VALUE) {
+        await AsyncStorage.multiRemove(['auth_token', 'user', AUTH_SCOPE_KEY]);
+        return;
+      }
+
       if (storedToken && storedUser && storedUser.trim() !== '') {
         setToken(storedToken);
         try {
@@ -52,6 +66,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await AsyncStorage.setItem('auth_token', authToken);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
+      await AsyncStorage.setItem(AUTH_SCOPE_KEY, AUTH_SCOPE_VALUE);
       setToken(authToken);
       setUser(userData);
     } catch (error) {
@@ -62,8 +77,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await AsyncStorage.removeItem('auth_token');
-      await AsyncStorage.removeItem('user');
+      await AsyncStorage.multiRemove(['auth_token', 'user', AUTH_SCOPE_KEY]);
       setToken(null);
       setUser(null);
     } catch (error) {

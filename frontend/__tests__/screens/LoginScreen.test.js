@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import { Alert, TouchableOpacity } from 'react-native';
-import LoginScreen from '../../src/screens/LoginScreen';
+import LoginScreen from '../../src/features/auth/screens/LoginScreen';
 import { authAPI } from '../../src/services/api';
 
 const mockPersistLogin = jest.fn();
@@ -12,10 +12,11 @@ jest.mock('../../src/services/api', () => ({
     loginWithSms: jest.fn(),
     sendLoginSmsCode: jest.fn(),
     requestCaptcha: jest.fn(),
+    demoLogin: jest.fn(),
   },
 }));
 
-jest.mock('../../src/context/AuthContext', () => ({
+jest.mock('../../src/app/providers/AuthContext', () => ({
   useAuth: () => ({
     login: mockPersistLogin,
   }),
@@ -47,7 +48,7 @@ describe('LoginScreen', () => {
     Alert.alert.mockRestore();
   });
 
-  it('persists auth after successful password login and does not show demo entry', async () => {
+  it('persists auth after successful password login and keeps the dev demo entry available', async () => {
     const navigation = {
       navigate: jest.fn(),
     };
@@ -93,8 +94,8 @@ describe('LoginScreen', () => {
 
     const demoButton = renderer.root
       .findAllByType(TouchableOpacity)
-      .find((node) => node.props.children?.props?.children === '免密登录体验');
+      .find((node) => node.props.children?.props?.children === '测试登录');
 
-    expect(demoButton).toBeUndefined();
+    expect(demoButton).toBeTruthy();
   });
 });

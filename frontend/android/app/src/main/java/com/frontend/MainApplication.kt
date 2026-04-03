@@ -1,7 +1,6 @@
 package com.frontend
 
 import android.app.Application
-import com.github.reactnativehero.wechat.RNTWechatModule
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
@@ -23,11 +22,6 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
-    // Current post sharing uses text payloads only, so a no-op image loader keeps
-    // the native module initialized without adding an extra image pipeline.
-    RNTWechatModule.init { _, onComplete ->
-      onComplete(null)
-    }
     loadReactNative(this)
   }
 }

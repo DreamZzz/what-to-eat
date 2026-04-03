@@ -6,42 +6,9 @@
       "dto": "backend/src/main/java/com/quickstart/template/contexts/account/api/dto/UserDTO.java",
       "ignoreEntityFields": [
         "password",
-        "failedLoginAttempts",
-        "posts",
-        "comments"
+        "failedLoginAttempts"
       ],
       "dtoOnlyFields": []
-    },
-    {
-      "name": "Post",
-      "entity": "backend/src/main/java/com/quickstart/template/contexts/community/domain/Post.java",
-      "dto": "backend/src/main/java/com/quickstart/template/contexts/community/api/dto/PostDTO.java",
-      "ignoreEntityFields": [
-        "user",
-        "comments"
-      ],
-      "dtoOnlyFields": [
-        "userId",
-        "username",
-        "userAvatarUrl"
-      ]
-    },
-    {
-      "name": "Comment",
-      "entity": "backend/src/main/java/com/quickstart/template/contexts/community/domain/Comment.java",
-      "dto": "backend/src/main/java/com/quickstart/template/contexts/community/api/dto/CommentDTO.java",
-      "ignoreEntityFields": [
-        "user",
-        "post",
-        "parent",
-        "replies"
-      ],
-      "dtoOnlyFields": [
-        "userId",
-        "username",
-        "userAvatarUrl",
-        "postId"
-      ]
     }
   ]
 }

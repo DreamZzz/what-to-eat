@@ -289,7 +289,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.868299.eat;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zhaoqiang.whattoeat.dev;
 				PRODUCT_NAME = frontend;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -322,7 +322,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.868299.eat;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zhaoqiang.whattoeat.dev;
 				PRODUCT_NAME = frontend;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;

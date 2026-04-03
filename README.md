@@ -6,7 +6,7 @@
 
 - 保留模板已验证技术栈：React Native、Spring Boot、PostgreSQL，以及可切换的 provider 体系。
 - 首版聚焦 iOS 主流程：登录、首页输入、语音转文字、表单补全、AI 菜谱生成、喜欢/讨厌、个人中心收藏。
-- 后端保留模板通用能力层，新增 `meal` 上下文；旧 social demo API 暂不删除，但前端不再使用。
+- 后端保留模板通用能力层，并聚焦 `account / meal / media` 三个上下文。
 
 ## 仓库结构
 
@@ -16,7 +16,7 @@ what-to-eat/
 │   ├── sql/                 # bootstrap / demo seed
 │   ├── src/main/java/com/quickstart/template/
 │   │   ├── platform/        # config / security / provider
-│   │   └── contexts/        # account / meal / media / community / location
+│   │   └── contexts/        # account / meal / media
 │   ├── DEPLOY_ECS.md        # ECS 生产部署指南（eat.868299.com）
 │   └── start.sh             # 本地 / 生产环境启动入口
 ├── frontend/                # React Native App（iOS-first）
@@ -35,7 +35,7 @@ what-to-eat/
 
 - 认证：用户名或邮箱密码登录、图形验证码、找回密码。
 - 首页：品牌 logo、欢迎语、文字/语音输入切换、灵感推荐入口。
-- 表单：菜数、总热量、主食、口味。
+- 表单：菜数、总热量、主食。
 - 结果：多道菜谱卡片、步骤、食材、佐料、图片、喜欢/讨厌。
 - 个人中心：查看喜欢的菜谱。
 - Provider：语音识别与大模型生成支持 `mock` / 真实厂商切换。
@@ -43,10 +43,8 @@ what-to-eat/
 ## Provider 开关
 
 - `APP_MEDIA_STORAGE_PROVIDER=local|oss`
-- `APP_MAP_PROVIDER=disabled|amap`
 - `APP_AUTH_PASSWORD_RESET_PROVIDER=log|mail`
 - `APP_AUTH_SMS_PROVIDER=log|aliyun`
-- `APP_SEARCH_PROVIDER=database|elasticsearch`
 - `APP_SPEECH_PROVIDER=mock|aliyun`
 - `APP_LLM_PROVIDER=mock|openai-compatible`
 - `APP_LLM_IMAGE_PROVIDER=disabled|web-search|openai-compatible`
@@ -135,4 +133,5 @@ cd frontend && ./start.sh device remote "你的 iPhone 设备名"
 - 业务能力扩展：优先在 `frontend/src/features` 和 `backend/src/main/java/com/quickstart/template/contexts` 下新增模块。
 - 启用真实云服务：只改 `.env` 中 provider 与凭据，不改业务层 controller 路径。
 - 首版品牌名统一使用 `What To Eat` / `what-to-eat`；Java package、Xcode target、React Native module name 暂保留模板默认值。
+- 当前 meal 主链路采用两阶段交互：先流式返回菜谱卡片，再按需补图和补做法。
 - 详细说明见 [template-customization.md](/Users/qiang/what-to-eat/docs/template-customization.md) 和 [provider-matrix.md](/Users/qiang/what-to-eat/docs/provider-matrix.md)。

@@ -6,6 +6,7 @@ import com.quickstart.template.contexts.meal.api.dto.MealRecommendationRequestDT
 import com.quickstart.template.contexts.meal.api.dto.RecipeDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeIngredientDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeStepDTO;
+import com.quickstart.template.contexts.meal.api.dto.RecipeStepTokenDTO;
 import com.quickstart.template.contexts.meal.application.MealGenerationException;
 import com.quickstart.template.contexts.meal.application.MealGenerationResult;
 import org.slf4j.Logger;
@@ -479,6 +480,16 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
      */
     @Override
     public void streamRecipeSteps(RecipeDTO recipe, String locale, Consumer<RecipeStepDTO> onStep) {
+        streamRecipeSteps(recipe, locale, token -> { }, onStep);
+    }
+
+    @Override
+    public void streamRecipeSteps(
+            RecipeDTO recipe,
+            String locale,
+            Consumer<RecipeStepTokenDTO> onToken,
+            Consumer<RecipeStepDTO> onStep
+    ) {
         if (apiKey == null || apiKey.isBlank()) {
             throw new MealGenerationException("菜谱生成服务未配置 API key", true);
         }
@@ -529,7 +540,14 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
                             JsonNode node = objectMapper.readTree(data);
                             String token = node.at("/choices/0/delta/content").asText("");
                             if (token.isEmpty()) return;
-                            for (String stepJson : parser.append(token)) {
+                            StepStreamParser.ParseBatch batch = parser.append(token);
+                            for (StepStreamParser.StepTokenDelta delta : batch.tokenDeltas()) {
+                                RecipeStepTokenDTO tokenDto = new RecipeStepTokenDTO();
+                                tokenDto.setIndex(delta.index());
+                                tokenDto.setContentDelta(delta.contentDelta());
+                                onToken.accept(tokenDto);
+                            }
+                            for (String stepJson : batch.completedStepJsons()) {
                                 try {
                                     JsonNode stepNode = objectMapper.readTree(stepJson);
                                     RecipeStepDTO step = new RecipeStepDTO();
@@ -863,19 +881,27 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
      * each {@code {"index":N,"content":"..."}} object's closing brace is received.
      */
     static final class StepStreamParser {
+        private static final java.util.regex.Pattern INDEX_PATTERN =
+                java.util.regex.Pattern.compile("\"index\"\\s*:\\s*(\\d+)");
+        private static final java.util.regex.Pattern CONTENT_PATTERN =
+                java.util.regex.Pattern.compile("\"content\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)");
+
         private final StringBuilder buffer = new StringBuilder();
         private boolean foundStepsArray = false;
         private int arraySearchFrom = 0;
         private int scanFrom = 0;
         private int depth = 0;
         private int stepStart = -1;
+        private Integer currentStepIndex = null;
+        private String emittedContent = "";
 
         /**
          * Append a new token and return any newly completed step JSON strings.
          */
-        List<String> append(String token) {
+        ParseBatch append(String token) {
             buffer.append(token);
             List<String> completed = new ArrayList<>();
+            List<StepTokenDelta> deltas = new ArrayList<>();
 
             if (!foundStepsArray) {
                 // Guard against re-scanning already-checked content when "steps" spans tokens
@@ -884,12 +910,12 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
                 int stepsIdx = buf.indexOf("\"steps\"", from);
                 if (stepsIdx < 0) {
                     arraySearchFrom = buffer.length();
-                    return completed;
+                    return new ParseBatch(deltas, completed);
                 }
                 int bracketIdx = buf.indexOf('[', stepsIdx + 7);
                 if (bracketIdx < 0) {
                     arraySearchFrom = stepsIdx;
-                    return completed;
+                    return new ParseBatch(deltas, completed);
                 }
                 foundStepsArray = true;
                 scanFrom = bracketIdx + 1;
@@ -901,6 +927,8 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
                 if (c == '{') {
                     if (depth == 0) {
                         stepStart = i;
+                        currentStepIndex = null;
+                        emittedContent = "";
                     }
                     depth++;
                 } else if (c == '}') {
@@ -908,11 +936,48 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
                     if (depth == 0 && stepStart >= 0) {
                         completed.add(buffer.substring(stepStart, i + 1));
                         stepStart = -1;
+                        currentStepIndex = null;
+                        emittedContent = "";
                     }
                 }
             }
             scanFrom = buffer.length();
-            return completed;
+            if (stepStart >= 0) {
+                String partial = buffer.substring(stepStart);
+                if (currentStepIndex == null) {
+                    java.util.regex.Matcher indexMatcher = INDEX_PATTERN.matcher(partial);
+                    if (indexMatcher.find()) {
+                        currentStepIndex = Integer.parseInt(indexMatcher.group(1));
+                    }
+                }
+                java.util.regex.Matcher contentMatcher = CONTENT_PATTERN.matcher(partial);
+                if (contentMatcher.find()) {
+                    String decoded = decodeJsonString(contentMatcher.group(1));
+                    if (decoded.length() > emittedContent.length()) {
+                        String delta = decoded.substring(emittedContent.length());
+                        if (!delta.isEmpty()) {
+                            deltas.add(new StepTokenDelta(currentStepIndex != null ? currentStepIndex : 0, delta));
+                            emittedContent = decoded;
+                        }
+                    }
+                }
+            }
+            return new ParseBatch(deltas, completed);
+        }
+
+        private String decodeJsonString(String value) {
+            return value
+                    .replace("\\n", "\n")
+                    .replace("\\t", "\t")
+                    .replace("\\r", "\r")
+                    .replace("\\\"", "\"")
+                    .replace("\\\\", "\\");
+        }
+
+        record StepTokenDelta(int index, String contentDelta) {
+        }
+
+        record ParseBatch(List<StepTokenDelta> tokenDeltas, List<String> completedStepJsons) {
         }
     }
 }

@@ -3,6 +3,7 @@ package com.quickstart.template.platform.provider.recipeai;
 import com.quickstart.template.contexts.meal.api.dto.MealRecommendationRequestDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeStepDTO;
+import com.quickstart.template.contexts.meal.api.dto.RecipeStepTokenDTO;
 import com.quickstart.template.contexts.meal.application.MealGenerationResult;
 
 import java.util.function.Consumer;
@@ -31,6 +32,21 @@ public interface MealGenerationProvider {
      * @param onStep called for each completed step in order
      */
     default void streamRecipeSteps(RecipeDTO recipe, String locale, Consumer<RecipeStepDTO> onStep) {
+        streamRecipeSteps(recipe, locale, token -> { }, onStep);
+    }
+
+    /**
+     * Rich streaming variant for phase-2 step generation.
+     * {@code onToken} receives user-facing content deltas for the current step so the
+     * frontend can render an in-progress line, while {@code onStep} receives the final
+     * structured step object once it is complete.
+     */
+    default void streamRecipeSteps(
+            RecipeDTO recipe,
+            String locale,
+            Consumer<RecipeStepTokenDTO> onToken,
+            Consumer<RecipeStepDTO> onStep
+    ) {
         if (recipe.getSteps() != null) {
             recipe.getSteps().forEach(onStep);
         }

@@ -60,7 +60,6 @@ const MealResultsScreen = ({ navigation, route }) => {
         {/* Skeleton cards while stream is starting and no recipes have arrived yet */}
         {vm.streaming && vm.recipes.length === 0
           ? Array.from({ length: vm.skeletonCount }).map((_, i) => (
-              // eslint-disable-next-line react/no-array-index-key
               <RecipeCardSkeleton key={`skeleton-${i}`} />
             ))
           : null}

@@ -5,6 +5,8 @@ import { normalizeRecipe, normalizeRecipeList, normalizeRecommendationResponse }
 import { STAPLE_INFO } from '../constants';
 import { getResponseErrorMessage } from '../../../utils/apiError';
 
+const STREAM_FALLBACK_MS = 12000;
+
 /**
  * ViewModel for MealResultsScreen.
  * Owns: SSE streaming lifecycle, recipe list, image fetching, preference updates.
@@ -30,31 +32,100 @@ export const useMealResultsViewModel = (navigation, route) => {
     )
   );
   const fetchingImages = useRef(new Set());
+  const receivedStreamRecipe = useRef(false);
+  const streamFallbackTriggered = useRef(false);
+  const acceptedRecipeCount = useRef(
+    normalizeRecipeList(normalizedRecommendation.items).length
+  );
+  const targetRecipeCount = streamingRequest?.dishCount ?? normalizedRecommendation.form?.dishCount ?? null;
 
   // ── SSE stream ────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!streamingRequest) return;
+    const applyRecipeList = (items) => {
+      const normalizedItems = normalizeRecipeList(items);
+      setRecipes(normalizedItems);
+      setRecipePreferenceMap(
+        Object.fromEntries(normalizedItems.map((r) => [r.id, r.preference ?? null]))
+      );
+    };
+
+    const triggerSyncFallback = () => {
+      if (receivedStreamRecipe.current || streamFallbackTriggered.current) return;
+      streamFallbackTriggered.current = true;
+      mealAPI
+        .recommendMeals(streamingRequest)
+        .then((response) => {
+          const normalized = normalizeRecommendationResponse(response.data);
+          applyRecipeList(normalized.items);
+          setStreamError(null);
+        })
+        .catch((error) => {
+          const isUnauthorized =
+            error?.response?.status === 401 || error?.response?.status === 403;
+          setStreamError(
+            isUnauthorized
+              ? '登录已失效，请重新登录后再试。'
+              : getResponseErrorMessage(error, '生成失败，请稍后重试。')
+          );
+        })
+        .finally(() => {
+          setStreaming(false);
+        });
+    };
+
+    const fallbackTimer = setTimeout(() => {
+      triggerSyncFallback();
+    }, STREAM_FALLBACK_MS);
+
     mealAPI.streamRecommendations(streamingRequest, {
       onRecipe: (recipe) => {
+        if (streamFallbackTriggered.current) return;
+        receivedStreamRecipe.current = true;
         const normalized = normalizeRecipe(recipe);
         setRecipes((current) => [...current, normalized]);
+        acceptedRecipeCount.current += 1;
         setRecipePreferenceMap((current) => ({
           ...current,
           [normalized.id]: normalized.preference ?? null,
         }));
       },
-      onComplete: () => setStreaming(false),
+      shouldStop: () => (
+        typeof targetRecipeCount === 'number'
+          && targetRecipeCount > 0
+          && acceptedRecipeCount.current >= targetRecipeCount
+      ),
+      onComplete: () => {
+        clearTimeout(fallbackTimer);
+        if (streamFallbackTriggered.current) return;
+        if (!receivedStreamRecipe.current) {
+          triggerSyncFallback();
+          return;
+        }
+        setStreaming(false);
+      },
       onError: (err) => {
+        clearTimeout(fallbackTimer);
+        if (streamFallbackTriggered.current) return;
+        const isUnauthorized =
+          err?.response?.status === 401 || err?.response?.status === 403;
+        if (!receivedStreamRecipe.current && !isUnauthorized) {
+          triggerSyncFallback();
+          return;
+        }
         console.error('Stream error:', err);
         setStreamError(
-          err?.response?.status === 401 || err?.response?.status === 403
+          isUnauthorized
             ? '登录已失效，请重新登录后再试。'
             : err?.message || '生成失败，请稍后重试。'
         );
         setStreaming(false);
       },
     });
+    return () => {
+      clearTimeout(fallbackTimer);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

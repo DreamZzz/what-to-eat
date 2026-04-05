@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import apiClient, { generateRequestId } from '../../shared/api/client';
+import apiClient, { generateRequestId, handleUnauthorized } from '../../shared/api/client';
 import { API_BASE_URL } from '../../app/config/api';
 
 export const voiceAPI = {
@@ -110,6 +110,12 @@ export const mealAPI = {
       };
 
       xhr.onload = () => {
+        if (xhr.status === 401) {
+          handleUnauthorized().catch(() => {});
+          onError(Object.assign(new Error('登录已过期，请重新登录'), { status: 401 }));
+          resolve();
+          return;
+        }
         completed = true;
         if (buffer.trim()) {
           buffer += '\n';
@@ -223,6 +229,12 @@ export const mealAPI = {
       };
 
       xhr.onload = () => {
+        if (xhr.status === 401) {
+          handleUnauthorized().catch(() => {});
+          onError(Object.assign(new Error('登录已过期，请重新登录'), { status: 401 }));
+          resolve();
+          return;
+        }
         completed = true;
         if (buffer.trim()) {
           buffer += '\n';

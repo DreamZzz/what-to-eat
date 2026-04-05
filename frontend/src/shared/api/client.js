@@ -54,4 +54,12 @@ export const registerUnauthorizedHandler = (handler) => {
   unauthorizedHandler = handler;
 };
 
+/** Called by XHR-based (SSE) requests that bypass the axios interceptor. */
+export const handleUnauthorized = async () => {
+  await AsyncStorage.multiRemove(['auth_token', 'user', 'auth_scope']);
+  if (typeof unauthorizedHandler === 'function') {
+    await unauthorizedHandler();
+  }
+};
+
 export default apiClient;

@@ -10,7 +10,7 @@
 
 - [x] **[AI]** 修改 Bundle ID：`com.quickstart.template.frontend` → `com.868299.eat`
 - [x] **[AI]** `package.json` version 对齐：`0.0.1` → `1.0`
-- [ ] **[人工]** 准备隐私政策页面并获取可访问的 URL
+- [x] **[AI]** 准备隐私政策页面并部署上线（https://eat.868299.com/privacy）
 - [ ] **[人工]** 制作 App Store 截图（6.5" + 5.5"，每种至少 3 张）
 - [ ] **[人工]** 在 App Store Connect 填写 App 描述、关键词、宣传语
 - [x] **[AI]** 接入 Sentry 崩溃监控（前端代码部分）

@@ -3,6 +3,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../../app/config/api';
 
 let unauthorizedHandler = null;
+const AUTH_STORAGE_KEYS = ['auth_token', 'user', 'auth_scope'];
+
+const clearStoredAuth = async () => {
+  if (typeof AsyncStorage.multiRemove === 'function') {
+    await AsyncStorage.multiRemove(AUTH_STORAGE_KEYS);
+    return;
+  }
+
+  await Promise.all(
+    AUTH_STORAGE_KEYS.map((key) =>
+      typeof AsyncStorage.removeItem === 'function'
+        ? AsyncStorage.removeItem(key)
+        : Promise.resolve()
+    )
+  );
+};
 
 export const generateRequestId = () =>
   'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -41,7 +57,7 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      await AsyncStorage.multiRemove(['auth_token', 'user', 'auth_scope']);
+      await clearStoredAuth();
       if (typeof unauthorizedHandler === 'function') {
         await unauthorizedHandler(error);
       }
@@ -56,7 +72,7 @@ export const registerUnauthorizedHandler = (handler) => {
 
 /** Called by XHR-based (SSE) requests that bypass the axios interceptor. */
 export const handleUnauthorized = async () => {
-  await AsyncStorage.multiRemove(['auth_token', 'user', 'auth_scope']);
+  await clearStoredAuth();
   if (typeof unauthorizedHandler === 'function') {
     await unauthorizedHandler();
   }

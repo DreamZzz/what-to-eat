@@ -51,7 +51,7 @@ const HomeScreen = ({ navigation }) => {
 
           <Text style={styles.headline}>今天想吃点什么</Text>
           <Text style={styles.supporting}>
-            输入菜名、食材或直接说出来，我们帮你补齐菜数、热量、主食和口味偏好。
+            输入菜名、食材或直接说出来，我们帮你补齐菜数、热量和主食偏好。
           </Text>
 
           <View style={styles.inspirationModule}>

@@ -203,6 +203,84 @@ class MealCatalogServiceTest {
         assertTrue(dto.getFeatureTags().contains("国民家常"));
     }
 
+    @Test
+    @DisplayName("resolveCatalogTitle should reject ambiguous single-character pseudo dish names")
+    void resolveCatalogTitle_ShouldRejectAmbiguousSingleCharacterPseudoDishName() {
+        MealCatalogDataset dataset = new MealCatalogDataset();
+        dataset.setId(7L);
+        dataset.setVersion("cn-home-menu-v1");
+        dataset.setImportedAt(LocalDateTime.now());
+        dataset.setActive(true);
+
+        MealCatalogItem item = createCatalogItem(dataset, 11L, 1, "蒜蓉金针菇", "菌菇");
+        item.getItemTags().add(createRelation(item, "FEATURE", "国民家常"));
+
+        when(datasetRepository.findFirstByActiveTrueOrderByImportedAtDesc()).thenReturn(Optional.of(dataset));
+        when(itemRepository.countByDatasetId(7L)).thenReturn(1L);
+        when(itemRepository.findAllByDatasetVersionAndEnabledTrueOrderBySourceIndexAsc("cn-home-menu-v1"))
+                .thenReturn(List.of(item));
+
+        assertTrue(mealCatalogService.resolveCatalogTitle("家").isEmpty());
+        assertEquals("蒜蓉金针菇", mealCatalogService.resolveCatalogTitle("蒜蓉金针菇").orElseThrow());
+    }
+
+    @Test
+    @DisplayName("resolveRecommendedTitles should replace invalid titles with real catalog dishes")
+    void resolveRecommendedTitles_ShouldReplaceInvalidTitlesWithRealCatalogDishes() {
+        MealCatalogDataset dataset = new MealCatalogDataset();
+        dataset.setId(7L);
+        dataset.setVersion("cn-home-menu-v1");
+        dataset.setImportedAt(LocalDateTime.now());
+        dataset.setActive(true);
+
+        MealCatalogItem item1 = createCatalogItem(dataset, 11L, 1, "蒜蓉金针菇", "菌菇");
+        item1.setRawFlavorText("家常蒜香");
+        item1.getItemTags().add(createRelation(item1, "FEATURE", "国民家常"));
+
+        MealCatalogItem item2 = createCatalogItem(dataset, 12L, 2, "青椒肉丝", "家常小炒");
+        item2.setRawFlavorText("经典家常");
+        item2.getItemTags().add(createRelation(item2, "FEATURE", "国民家常"));
+
+        when(datasetRepository.findFirstByActiveTrueOrderByImportedAtDesc()).thenReturn(Optional.of(dataset));
+        when(itemRepository.countByDatasetId(7L)).thenReturn(2L);
+        when(itemRepository.findAllByDatasetVersionAndEnabledTrueOrderBySourceIndexAsc("cn-home-menu-v1"))
+                .thenReturn(List.of(item1, item2));
+
+        List<String> resolved = mealCatalogService.resolveRecommendedTitles(
+                "家",
+                List.of("家"),
+                2,
+                List.of()
+        );
+
+        assertEquals(2, resolved.size());
+        assertTrue(resolved.contains("蒜蓉金针菇"));
+        assertTrue(resolved.contains("青椒肉丝"));
+        assertTrue(resolved.stream().noneMatch("家"::equals));
+    }
+
+    private MealCatalogItem createCatalogItem(
+            MealCatalogDataset dataset,
+            Long id,
+            int sourceIndex,
+            String name,
+            String category
+    ) {
+        MealCatalogItem item = new MealCatalogItem();
+        item.setId(id);
+        item.setDataset(dataset);
+        item.setDatasetVersion(dataset.getVersion());
+        item.setCode("code-" + id);
+        item.setSlug("slug-" + id);
+        item.setName(name);
+        item.setCategory(category);
+        item.setSubcategory(category);
+        item.setCookingMethod("炒");
+        item.setRawFlavorText("家常");
+        item.setSourceIndex(sourceIndex);
+        return item;
+    }
+
     private MealCatalogItemTag createRelation(MealCatalogItem item, String type, String label) {
         MealCatalogTag tag = new MealCatalogTag();
         tag.setTagType(type);

@@ -19,7 +19,24 @@ public interface MealGenerationProvider {
      * {@link #generate} and emits all results at once.
      */
     default void generateStream(MealRecommendationRequestDTO request, Consumer<RecipeDTO> onRecipe) {
-        generate(request).getRecipes().forEach(onRecipe);
+        generateStream(request, reasonSummary -> { }, onRecipe);
+    }
+
+    /**
+     * Rich streaming variant for phase-1 recommendation generation.
+     * {@code onSummary} emits the recommended-menu rationale as soon as it is available,
+     * while {@code onRecipe} emits recipe cards incrementally.
+     */
+    default void generateStream(
+            MealRecommendationRequestDTO request,
+            Consumer<String> onSummary,
+            Consumer<RecipeDTO> onRecipe
+    ) {
+        MealGenerationResult result = generate(request);
+        if (result.getReasonSummary() != null && !result.getReasonSummary().isBlank()) {
+            onSummary.accept(result.getReasonSummary());
+        }
+        result.getRecipes().forEach(onRecipe);
     }
 
     /**

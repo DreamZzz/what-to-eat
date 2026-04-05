@@ -45,6 +45,10 @@ jest.mock('../src/features/meal/screens/MealResultsScreen', () => function MockM
   return null;
 });
 
+jest.mock('../src/features/meal/screens/RecipeDetailScreen', () => function MockRecipeDetailScreen() {
+  return null;
+});
+
 jest.mock('@react-navigation/stack', () => {
   const mockReact = require('react');
 

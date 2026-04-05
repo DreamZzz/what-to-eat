@@ -7,8 +7,10 @@ import com.quickstart.template.contexts.meal.api.dto.RecipeDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeIngredientDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeStepDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeStepTokenDTO;
+import com.quickstart.template.contexts.meal.application.MealCatalogService;
 import com.quickstart.template.contexts.meal.application.MealGenerationException;
 import com.quickstart.template.contexts.meal.application.MealGenerationResult;
+import com.quickstart.template.contexts.meal.application.MealIntentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,6 +36,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -58,6 +61,8 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
     /** Dedicated client for per-dish streaming calls: longer timeout than the regular clients. */
     private final RestClient streamingRestClient;
     private final ObjectMapper objectMapper;
+    private final MealCatalogService mealCatalogService;
+    private final MealIntentService mealIntentService;
     private final String apiKey;
     private final String chatModel;
     private final String fallbackChatModel;
@@ -65,6 +70,8 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
 
     public OpenAiCompatibleMealGenerationProvider(
             ObjectMapper objectMapper,
+            MealCatalogService mealCatalogService,
+            MealIntentService mealIntentService,
             @Value("${app.meal.openai.base-url:https://api.openai.com}") String baseUrl,
             @Value("${app.meal.openai.api-key:}") String apiKey,
             @Value("${app.meal.openai.chat-model:gpt-4o-mini}") String chatModel,
@@ -73,6 +80,8 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
             @Value("${app.meal.openai.fallback-timeout-ms:25000}") long fallbackTimeoutMs,
             @Value("${app.meal.openai.streaming-timeout-ms:50000}") long streamingTimeoutMs) {
         this.objectMapper = objectMapper;
+        this.mealCatalogService = mealCatalogService;
+        this.mealIntentService = mealIntentService;
         this.apiKey = apiKey;
         this.chatModel = chatModel;
         this.baseUrl = baseUrl;
@@ -110,15 +119,23 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
      * rather than waiting for all dishes to complete in a single call (~60s+).
      */
     @Override
-    public void generateStream(MealRecommendationRequestDTO request, Consumer<RecipeDTO> onRecipe) {
+    public void generateStream(
+            MealRecommendationRequestDTO request,
+            Consumer<String> onSummary,
+            Consumer<RecipeDTO> onRecipe
+    ) {
         if (apiKey == null || apiKey.isBlank()) {
             throw new MealGenerationException("菜谱生成服务未配置 API key", true);
         }
         try {
             if (request.getDishCount() != null && request.getDishCount() > 1) {
-                streamMultiDishSequential(request, onRecipe);
+                streamMultiDishSequential(request, onSummary, onRecipe);
             } else {
-                generate(request).getRecipes().forEach(onRecipe);
+                MealGenerationResult result = generate(request);
+                if (result.getReasonSummary() != null && !result.getReasonSummary().isBlank()) {
+                    onSummary.accept(result.getReasonSummary());
+                }
+                result.getRecipes().forEach(onRecipe);
             }
         } catch (MealGenerationException e) {
             throw e;
@@ -128,7 +145,11 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
         }
     }
 
-    private void streamMultiDishSequential(MealRecommendationRequestDTO request, Consumer<RecipeDTO> onRecipe) throws Exception {
+    private void streamMultiDishSequential(
+            MealRecommendationRequestDTO request,
+            Consumer<String> onSummary,
+            Consumer<RecipeDTO> onRecipe
+    ) throws Exception {
         // Bounded-concurrency streaming: at most STREAMING_CONCURRENCY calls run at the
         // same time. This gives ~2× throughput vs fully sequential while keeping rate-limit
         // risk low. Each call uses streamingRestClient (50 s timeout) so even slow providers
@@ -142,6 +163,10 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
         List<String> titles = selectRecipeTitles(plan.client(), plan.modelName(), request, bufferedCount);
         if (titles.isEmpty()) {
             return;
+        }
+        String reasonSummary = generateReasonSummary(plan.client(), plan.modelName(), request, titles);
+        if (reasonSummary != null && !reasonSummary.isBlank()) {
+            onSummary.accept(reasonSummary);
         }
         log.info("Streaming {} recipe cards (phase-1, target={}, buffered={}, concurrency={}) with model {}",
                 titles.size(), targetCount, bufferedCount, STREAMING_CONCURRENCY, plan.modelName());
@@ -215,7 +240,7 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
         ModelExecutionPlan plan = resolveModelExecutionPlan(request);
         List<String> recipeTitles = selectRecipeTitles(plan.client(), plan.modelName(), request);
         if (recipeTitles.isEmpty()) {
-            return new MealGenerationResult(providerName(), List.of(), true);
+            return new MealGenerationResult(providerName(), List.of(), true, null);
         }
 
         log.info(
@@ -232,7 +257,12 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
         if (recipes.isEmpty()) {
             throw new MealGenerationException("菜谱生成失败，请稍后重试", false);
         }
-        return new MealGenerationResult(providerName(), recipes, false);
+        return new MealGenerationResult(
+                providerName(),
+                recipes,
+                false,
+                generateReasonSummary(plan.client(), plan.modelName(), request, recipeTitles)
+        );
     }
 
     private ModelExecutionPlan resolveModelExecutionPlan(MealRecommendationRequestDTO request) {
@@ -289,12 +319,31 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
         // Case 1: user listed EXACTLY dishCount dish names → use verbatim, skip LLM.
         List<String> explicit = parseExplicitDishNames(sourceText, dishCount);
         if (!explicit.isEmpty()) {
-            log.info("Title selection skipped: using explicit dish names from sourceText: {}", explicit);
-            return explicit;
+            List<String> resolvedExplicit = mealCatalogService.resolveRecommendedTitles(
+                    sourceText,
+                    explicit,
+                    targetCount,
+                    explicit
+            );
+            log.info("Title selection skipped: using explicit catalog dish names from sourceText: {}", resolvedExplicit);
+            return resolvedExplicit;
         }
 
         // Case 2: user listed 2–(dishCount-1) dish names → those are required; LLM fills the rest.
         List<String> partialRequired = parsePartialExplicitDishNames(sourceText, dishCount);
+
+        if (partialRequired.isEmpty() && mealIntentService.isBroadFoodIntent(sourceText)) {
+            List<String> catalogFirstTitles = mealCatalogService.resolveRecommendedTitles(
+                    sourceText,
+                    List.of(),
+                    targetCount,
+                    List.of()
+            );
+            if (!catalogFirstTitles.isEmpty()) {
+                log.info("Title selection skipped: using catalog-first titles for broad sourceText={}", sourceText);
+                return catalogFirstTitles;
+            }
+        }
 
         JsonNode response = requestChatCompletion(
                 client,
@@ -323,9 +372,14 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
         // Case 2: partial list of dish names  Case 3: single specific dish name
         List<String> allRequired;
         if (!partialRequired.isEmpty()) {
-            allRequired = partialRequired;
+            allRequired = partialRequired.stream()
+                    .map(mealCatalogService::resolveCatalogTitle)
+                    .flatMap(Optional::stream)
+                    .toList();
         } else if (dishCount > 1 && sourceText != null && !MealGenerationPrompts.isBroadFlavorIntent(sourceText)) {
-            allRequired = List.of(sourceText.trim());
+            allRequired = mealCatalogService.resolveCatalogTitle(sourceText.trim())
+                    .map(List::of)
+                    .orElseGet(List::of);
         } else {
             allRequired = List.of();
         }
@@ -340,10 +394,15 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
                     reordered.add(t);
                 }
             }
-            return reordered;
+            return mealCatalogService.resolveRecommendedTitles(sourceText, reordered, targetCount, allRequired);
         }
 
-        return new ArrayList<>(uniqueTitles);
+        return mealCatalogService.resolveRecommendedTitles(
+                sourceText,
+                new ArrayList<>(uniqueTitles),
+                targetCount,
+                allRequired
+        );
     }
 
     /** Overload for callers that don't need title buffering (uses dishCount as-is). */
@@ -580,7 +639,47 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
         );
         String content = extractAssistantContent(response);
         List<RecipeDTO> recipes = parseRecipes(content);
-        return new MealGenerationResult(providerName(), recipes, recipes.isEmpty());
+        return new MealGenerationResult(
+                providerName(),
+                recipes,
+                recipes.isEmpty(),
+                generateReasonSummary(
+                        client,
+                        modelName,
+                        request,
+                        recipes.stream().map(RecipeDTO::getTitle).filter(Objects::nonNull).toList()
+                )
+        );
+    }
+
+    private String generateReasonSummary(
+            RestClient client,
+            String modelName,
+            MealRecommendationRequestDTO request,
+            List<String> recipeTitles
+    ) {
+        if (recipeTitles == null || recipeTitles.isEmpty()) {
+            return null;
+        }
+        try {
+            JsonNode response = requestChatCompletion(
+                    client,
+                    modelName,
+                    MealGenerationPrompts.reasonSummarySystemPrompt(),
+                    MealGenerationPrompts.reasonSummaryUserPrompt(request, recipeTitles)
+            );
+            JsonNode payload = objectMapper.readTree(stripCodeFence(extractAssistantContent(response)));
+            String summary = payload.path("reasonSummary").asText("").trim();
+            return summary.isBlank() ? null : summary;
+        } catch (Exception exception) {
+            log.warn(
+                    "Reason summary generation failed for sourceText={} titles={}",
+                    request.getSourceText(),
+                    recipeTitles,
+                    exception
+            );
+            return null;
+        }
     }
 
     private JsonNode requestChatCompletion(RestClient client, String modelName, String systemPrompt, String userPrompt) {
@@ -747,7 +846,7 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
             return false;
         }
 
-        return isBroadIntentText(request.getSourceText());
+        return mealIntentService.isBroadFoodIntent(request.getSourceText());
     }
 
     private boolean shouldSplitMultiDishGeneration(MealRecommendationRequestDTO request) {
@@ -819,7 +918,7 @@ public class OpenAiCompatibleMealGenerationProvider implements MealGenerationPro
         return allLookLikeDishNames ? names : List.of();
     }
 
-    static boolean isBroadIntentText(String sourceText) {
+    public static boolean isBroadIntentText(String sourceText) {
         if (sourceText == null) {
             return false;
         }

@@ -9,6 +9,23 @@ const AUTH_SCOPE_VALUE = [
   runtimeConfig.proxyTarget || runtimeConfig.apiBaseUrl || '',
 ].join('|');
 
+const removeStoredAuthKeys = async () => {
+  const keys = ['auth_token', 'user', AUTH_SCOPE_KEY];
+
+  if (typeof AsyncStorage.multiRemove === 'function') {
+    await AsyncStorage.multiRemove(keys);
+    return;
+  }
+
+  await Promise.all(
+    keys.map((key) =>
+      typeof AsyncStorage.removeItem === 'function'
+        ? AsyncStorage.removeItem(key)
+        : Promise.resolve()
+    )
+  );
+};
+
 const AuthContext = createContext({});
 
 export const useAuth = () => useContext(AuthContext);
@@ -41,7 +58,7 @@ export const AuthProvider = ({ children }) => {
       const storedScope = await AsyncStorage.getItem(AUTH_SCOPE_KEY);
 
       if (storedToken && storedUser && storedUser.trim() !== '' && storedScope !== AUTH_SCOPE_VALUE) {
-        await AsyncStorage.multiRemove(['auth_token', 'user', AUTH_SCOPE_KEY]);
+        await removeStoredAuthKeys();
         return;
       }
 
@@ -77,7 +94,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await AsyncStorage.multiRemove(['auth_token', 'user', AUTH_SCOPE_KEY]);
+      await removeStoredAuthKeys();
       setToken(null);
       setUser(null);
     } catch (error) {

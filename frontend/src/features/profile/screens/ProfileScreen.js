@@ -7,19 +7,25 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import RecipeCard from '../../meal/components/RecipeCard';
 import ProfileSkeleton from '../components/ProfileSkeleton';
 import { useProfileViewModel } from '../viewModels/useProfileViewModel';
 
-const ProfileScreen = () => {
+const ProfileScreen = ({ navigation }) => {
   const vm = useProfileViewModel();
+  const insets = useSafeAreaInsets();
 
   if (vm.loadingFavorites) {
     return (
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 30 },
+        ]}
         showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="always"
       >
         <ProfileSkeleton />
       </ScrollView>
@@ -29,8 +35,12 @@ const ProfileScreen = () => {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 30 },
+      ]}
       showsVerticalScrollIndicator={false}
+      contentInsetAdjustmentBehavior="always"
     >
       <View style={styles.header}>
         <View style={styles.badge}>
@@ -67,7 +77,16 @@ const ProfileScreen = () => {
           </View>
         ) : vm.favorites.length > 0 ? (
           vm.favorites.map((recipe) => (
-            <RecipeCard key={String(recipe.id || recipe.title)} recipe={recipe} compact />
+            <TouchableOpacity
+              key={String(recipe.id || recipe.title)}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('RecipeDetail', {
+                recipeId: recipe.id,
+                recipe,
+              })}
+            >
+              <RecipeCard recipe={recipe} compact />
+            </TouchableOpacity>
           ))
         ) : (
           <View style={styles.emptyBox}>
@@ -90,7 +109,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 30,
     gap: 18,
   },
   header: {

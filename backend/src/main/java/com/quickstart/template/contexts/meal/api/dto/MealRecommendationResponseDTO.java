@@ -7,6 +7,7 @@ public class MealRecommendationResponseDTO {
     private String sourceText;
     private MealRecommendationFormDTO form;
     private String provider;
+    private String reasonSummary;
     private List<RecipeDTO> items;
     private Boolean emptyState;
 
@@ -40,6 +41,14 @@ public class MealRecommendationResponseDTO {
 
     public void setProvider(String provider) {
         this.provider = provider;
+    }
+
+    public String getReasonSummary() {
+        return reasonSummary;
+    }
+
+    public void setReasonSummary(String reasonSummary) {
+        this.reasonSummary = reasonSummary;
     }
 
     public List<RecipeDTO> getItems() {

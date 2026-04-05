@@ -12,6 +12,7 @@ import ForgotPasswordScreen from '../../features/auth/screens/ForgotPasswordScre
 import HomeScreen from '../../features/meal/screens/HomeScreen';
 import MealFormScreen from '../../features/meal/screens/MealFormScreen';
 import MealResultsScreen from '../../features/meal/screens/MealResultsScreen';
+import RecipeDetailScreen from '../../features/meal/screens/RecipeDetailScreen';
 import ProfileScreen from '../../features/profile/screens/ProfileScreen';
 
 const RootStack = createStackNavigator();
@@ -147,11 +148,18 @@ export default function AppNavigator() {
         }}
       >
         {isAuthenticated ? (
-          <RootStack.Screen
-            name="HomeTabs"
-            component={TabsNavigator}
-            options={{ headerShown: false }}
-          />
+          <>
+            <RootStack.Screen
+              name="HomeTabs"
+              component={TabsNavigator}
+              options={{ headerShown: false }}
+            />
+            <RootStack.Screen
+              name="RecipeDetail"
+              component={RecipeDetailScreen}
+              options={{ title: '菜谱详情' }}
+            />
+          </>
         ) : (
           <>
             <RootStack.Screen

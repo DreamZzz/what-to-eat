@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quickstart.template.contexts.account.domain.User;
 import com.quickstart.template.contexts.meal.api.dto.MealCatalogItemDTO;
 import com.quickstart.template.contexts.meal.api.dto.MealCatalogResponseDTO;
+import com.quickstart.template.contexts.meal.api.dto.MealIntentResponseDTO;
 import com.quickstart.template.contexts.meal.api.dto.MealRecommendationFormDTO;
 import com.quickstart.template.contexts.meal.api.dto.MealRecommendationRequestDTO;
 import com.quickstart.template.contexts.meal.api.dto.MealRecommendationResponseDTO;
@@ -12,6 +13,7 @@ import com.quickstart.template.contexts.meal.api.dto.RecipeDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeIngredientDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipePreferenceResponseDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeStepDTO;
+import com.quickstart.template.contexts.meal.application.MealGenerationException;
 import com.quickstart.template.contexts.meal.application.MealService;
 import com.quickstart.template.platform.security.CurrentUserService;
 import com.quickstart.template.platform.security.JwtUtils;
@@ -163,6 +165,38 @@ class MealControllerTest {
     }
 
     @Test
+    @DisplayName("POST /api/meals/intent should return a clarification payload")
+    void analyzeIntent_ShouldReturnClarificationPayload() throws Exception {
+        User currentUser = new User();
+        currentUser.setId(1L);
+        currentUser.setUsername("demo_admin");
+
+        MealIntentResponseDTO response = new MealIntentResponseDTO();
+        response.setDecision("CLARIFY");
+        response.setNormalizedSourceText("家常菜");
+        response.setClarificationQuestion("你是想吃家常菜吗？");
+        response.setCatalogFirst(true);
+
+        when(currentUserService.getCurrentUser()).thenReturn(Optional.of(currentUser));
+        when(mealService.analyzeIntent("家")).thenReturn(response);
+
+        mockMvc.perform(post("/api/meals/intent")
+                        .with(user("demo_admin").roles("USER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "sourceText": "家",
+                                  "locale": "zh-CN"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.decision").value("CLARIFY"))
+                .andExpect(jsonPath("$.normalizedSourceText").value("家常菜"))
+                .andExpect(jsonPath("$.clarificationQuestion").value("你是想吃家常菜吗？"))
+                .andExpect(jsonPath("$.catalogFirst").value(true));
+    }
+
+    @Test
     @DisplayName("PUT /api/meals/recipes/{recipeId}/preference should return updated preference")
     void updatePreference_ShouldReturnUpdatedPreference() throws Exception {
         User currentUser = new User();
@@ -187,6 +221,30 @@ class MealControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.recipeId").value(7))
                 .andExpect(jsonPath("$.preference").value("LIKE"));
+    }
+
+    @Test
+    @DisplayName("PUT /api/meals/recipes/{recipeId}/preference should return 502 when favorite enrichment fails")
+    void updatePreference_ShouldReturnBadGatewayWhenFavoriteEnrichmentFails() throws Exception {
+        User currentUser = new User();
+        currentUser.setId(1L);
+        currentUser.setUsername("demo_admin");
+
+        when(currentUserService.getCurrentUser()).thenReturn(Optional.of(currentUser));
+        when(mealService.updatePreference(eq(7L), eq("LIKE"), eq(1L)))
+                .thenThrow(new MealGenerationException("收藏前补齐详细做法失败，请重试", false));
+
+        mockMvc.perform(put("/api/meals/recipes/7/preference")
+                        .with(user("demo_admin").roles("USER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "preference": "LIKE"
+                                }
+                                """))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.message").value("收藏前补齐详细做法失败，请重试"))
+                .andExpect(jsonPath("$.service").value("recipe-ai"));
     }
 
     @Test

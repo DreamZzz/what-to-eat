@@ -1,8 +1,12 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Text } from 'react-native';
+import { Text, TouchableOpacity } from 'react-native';
 import ProfileScreen from '../../src/features/profile/screens/ProfileScreen';
 import { mealAPI } from '../../src/features/meal/api';
+
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 24, bottom: 12, left: 0, right: 0 }),
+}));
 
 let mockAuthState = {
   user: {
@@ -38,9 +42,14 @@ jest.mock('@react-navigation/native', () => {
 });
 
 describe('ProfileScreen', () => {
+  const navigation = {
+    navigate: jest.fn(),
+  };
+
   beforeEach(() => {
     mealAPI.getFavorites.mockReset();
     mockAuthState.logout.mockReset();
+    navigation.navigate.mockReset();
   });
 
   it('shows an empty state when no favorites exist', async () => {
@@ -66,7 +75,7 @@ describe('ProfileScreen', () => {
 
     let renderer;
     await ReactTestRenderer.act(async () => {
-      renderer = ReactTestRenderer.create(<ProfileScreen />);
+      renderer = ReactTestRenderer.create(<ProfileScreen navigation={navigation} />);
     });
     await ReactTestRenderer.act(async () => {
       await Promise.resolve();
@@ -115,7 +124,7 @@ describe('ProfileScreen', () => {
 
     let renderer;
     await ReactTestRenderer.act(async () => {
-      renderer = ReactTestRenderer.create(<ProfileScreen />);
+      renderer = ReactTestRenderer.create(<ProfileScreen navigation={navigation} />);
     });
     await ReactTestRenderer.act(async () => {
       await Promise.resolve();
@@ -126,5 +135,60 @@ describe('ProfileScreen', () => {
       .find((node) => node.props.children === '番茄牛腩');
 
     expect(favoriteTitle).toBeTruthy();
+  });
+
+  it('navigates to recipe detail when tapping a favorite card', async () => {
+    mealAPI.getFavorites.mockResolvedValue({
+      data: {
+        items: [
+          {
+            id: 3,
+            title: '红烧排骨',
+            summary: '浓郁下饭',
+            estimatedCalories: 560,
+            ingredients: [{ name: '排骨' }],
+            seasonings: [{ name: '生抽' }],
+            steps: [{ index: 1, content: '焯水。' }],
+            imageUrl: '',
+            imageStatus: 'OMITTED',
+            preference: 'LIKE',
+          },
+        ],
+        pagination: {
+          page: 0,
+          size: 10,
+          totalItems: 1,
+          totalPages: 1,
+          hasNext: false,
+          hasPrevious: false,
+        },
+        retrieval: {
+          scene: 'favorites',
+          keyword: null,
+          sortStrategy: 'latest',
+          provider: 'database',
+        },
+      },
+    });
+
+    let renderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(<ProfileScreen navigation={navigation} />);
+    });
+    await ReactTestRenderer.act(async () => {
+      await Promise.resolve();
+    });
+
+    const favoriteTouchables = renderer.root.findAllByType(TouchableOpacity);
+    const target = favoriteTouchables.find((node) => node.props.activeOpacity === 0.9);
+
+    await ReactTestRenderer.act(async () => {
+      target.props.onPress();
+    });
+
+    expect(navigation.navigate).toHaveBeenCalledWith('RecipeDetail', {
+      recipeId: 3,
+      recipe: expect.objectContaining({ id: 3, title: '红烧排骨' }),
+    });
   });
 });

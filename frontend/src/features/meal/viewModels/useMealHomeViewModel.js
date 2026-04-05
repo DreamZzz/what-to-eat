@@ -102,13 +102,47 @@ export const useMealHomeViewModel = (navigation) => {
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
-  const submitDraft = useCallback(() => {
+  const submitDraft = useCallback(async () => {
     const trimmedText = draftText.trim();
     if (!trimmedText) {
       Alert.alert('先输入一点方向', '写下菜名、食材或口味后再继续。');
       return;
     }
-    goToForm(trimmedText, sourceOrigin, null);
+    try {
+      const response = await mealAPI.analyzeIntent({
+        sourceText: trimmedText,
+        locale: 'zh-CN',
+      });
+      const decision = response?.data?.decision;
+      const normalizedSourceText = (response?.data?.normalizedSourceText || trimmedText).trim();
+      const catalogItemId = response?.data?.catalogItemId ?? null;
+
+      if (decision === 'CLARIFY' && normalizedSourceText) {
+        Alert.alert(
+          '先确认一下',
+          response?.data?.clarificationQuestion || `你是想吃${normalizedSourceText}吗？`,
+          [
+            { text: '再想想', style: 'cancel' },
+            {
+              text: '是的',
+              onPress: () => goToForm(normalizedSourceText, sourceOrigin, catalogItemId),
+            },
+          ]
+        );
+        return;
+      }
+
+      goToForm(normalizedSourceText || trimmedText, sourceOrigin, catalogItemId);
+    } catch (error) {
+      const isUnauthorized = error?.response?.status === 401 || error?.response?.status === 403;
+      Alert.alert(
+        isUnauthorized ? '登录已失效' : '暂时无法理解这个方向',
+        getResponseErrorMessage(
+          error,
+          isUnauthorized ? '请重新登录后再试。' : '可以换成菜名、食材、口味或主食方向再试一次。'
+        )
+      );
+    }
   }, [draftText, sourceOrigin, goToForm]);
 
   const handleSuggestion = useCallback(async () => {

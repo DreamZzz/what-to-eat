@@ -43,7 +43,7 @@ export const useMealFormViewModel = (navigation, route) => {
     const nextCalories = Number.parseInt(totalCalories, 10);
 
     if (!normalizedText) {
-      Alert.alert('请先完善表单', '请输入菜名、食材或口味偏好');
+      Alert.alert('请先完善表单', '请输入菜名、食材或你想吃的方向');
       return;
     }
     if (!Number.isInteger(nextDishCount) || nextDishCount < 1 || nextDishCount > 6) {

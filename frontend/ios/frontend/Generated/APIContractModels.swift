@@ -256,6 +256,41 @@ public struct MealCatalogResponseDTO: Codable, Equatable, Sendable {
     }
 }
 
+public struct MealIntentRequestDTO: Codable, Equatable, Sendable {
+    public var sourceText: String?
+    public var locale: String?
+
+    public init(
+        sourceText: String? = nil,
+        locale: String? = nil
+    ) {
+        self.sourceText = sourceText
+        self.locale = locale
+    }
+}
+
+public struct MealIntentResponseDTO: Codable, Equatable, Sendable {
+    public var decision: String?
+    public var normalizedSourceText: String?
+    public var clarificationQuestion: String?
+    public var catalogFirst: Bool?
+    public var catalogItemId: Int64?
+
+    public init(
+        decision: String? = nil,
+        normalizedSourceText: String? = nil,
+        clarificationQuestion: String? = nil,
+        catalogFirst: Bool? = nil,
+        catalogItemId: Int64? = nil
+    ) {
+        self.decision = decision
+        self.normalizedSourceText = normalizedSourceText
+        self.clarificationQuestion = clarificationQuestion
+        self.catalogFirst = catalogFirst
+        self.catalogItemId = catalogItemId
+    }
+}
+
 public struct MealRecipeCollectionResponseDTO: Codable, Equatable, Sendable {
     public var items: [RecipeDTO]?
     public var pagination: PaginationMeta?
@@ -333,6 +368,7 @@ public struct MealRecommendationResponseDTO: Codable, Equatable, Sendable {
     public var sourceText: String?
     public var form: MealRecommendationFormDTO?
     public var provider: String?
+    public var reasonSummary: String?
     public var items: [RecipeDTO]?
     public var emptyState: Bool?
 
@@ -341,6 +377,7 @@ public struct MealRecommendationResponseDTO: Codable, Equatable, Sendable {
         sourceText: String? = nil,
         form: MealRecommendationFormDTO? = nil,
         provider: String? = nil,
+        reasonSummary: String? = nil,
         items: [RecipeDTO]? = nil,
         emptyState: Bool? = nil
     ) {
@@ -348,6 +385,7 @@ public struct MealRecommendationResponseDTO: Codable, Equatable, Sendable {
         self.sourceText = sourceText
         self.form = form
         self.provider = provider
+        self.reasonSummary = reasonSummary
         self.items = items
         self.emptyState = emptyState
     }

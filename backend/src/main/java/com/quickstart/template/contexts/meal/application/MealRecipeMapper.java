@@ -126,6 +126,7 @@ public class MealRecipeMapper {
             String requestId,
             MealRecommendationRequestDTO request,
             String provider,
+            String reasonSummary,
             List<RecipeDTO> recipes,
             boolean emptyState
     ) {
@@ -134,6 +135,7 @@ public class MealRecipeMapper {
         response.setSourceText(request.getSourceText());
         response.setForm(toForm(request));
         response.setProvider(provider);
+        response.setReasonSummary(reasonSummary);
         response.setItems(recipes);
         response.setEmptyState(emptyState);
         return response;

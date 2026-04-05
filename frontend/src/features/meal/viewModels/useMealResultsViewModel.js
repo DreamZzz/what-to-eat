@@ -23,6 +23,7 @@ export const useMealResultsViewModel = (navigation, route) => {
   const [recipes, setRecipes] = useState(
     normalizeRecipeList(normalizedRecommendation.items)
   );
+  const [reasonSummary, setReasonSummary] = useState(normalizedRecommendation.reasonSummary || '');
   const [pendingRecipeId, setPendingRecipeId] = useState(null);
   const [streaming, setStreaming] = useState(!!streamingRequest);
   const [streamError, setStreamError] = useState(null);
@@ -51,14 +52,22 @@ export const useMealResultsViewModel = (navigation, route) => {
       );
     };
 
+    const hasEnoughRecipes = () => (
+      typeof targetRecipeCount === 'number'
+        && targetRecipeCount > 0
+        ? acceptedRecipeCount.current >= targetRecipeCount
+        : acceptedRecipeCount.current > 0
+    );
+
     const triggerSyncFallback = () => {
-      if (receivedStreamRecipe.current || streamFallbackTriggered.current) return;
+      if (streamFallbackTriggered.current) return;
       streamFallbackTriggered.current = true;
       mealAPI
         .recommendMeals(streamingRequest)
         .then((response) => {
           const normalized = normalizeRecommendationResponse(response.data);
           applyRecipeList(normalized.items);
+          setReasonSummary(normalized.reasonSummary || '');
           setStreamError(null);
         })
         .catch((error) => {
@@ -80,6 +89,11 @@ export const useMealResultsViewModel = (navigation, route) => {
     }, STREAM_FALLBACK_MS);
 
     mealAPI.streamRecommendations(streamingRequest, {
+      onSummary: (summary) => {
+        if (summary) {
+          setReasonSummary(summary);
+        }
+      },
       onRecipe: (recipe) => {
         if (streamFallbackTriggered.current) return;
         receivedStreamRecipe.current = true;
@@ -99,7 +113,7 @@ export const useMealResultsViewModel = (navigation, route) => {
       onComplete: () => {
         clearTimeout(fallbackTimer);
         if (streamFallbackTriggered.current) return;
-        if (!receivedStreamRecipe.current) {
+        if (!receivedStreamRecipe.current || !hasEnoughRecipes()) {
           triggerSyncFallback();
           return;
         }
@@ -110,7 +124,7 @@ export const useMealResultsViewModel = (navigation, route) => {
         if (streamFallbackTriggered.current) return;
         const isUnauthorized =
           err?.response?.status === 401 || err?.response?.status === 403;
-        if (!receivedStreamRecipe.current && !isUnauthorized) {
+        if (!isUnauthorized && (!receivedStreamRecipe.current || !hasEnoughRecipes())) {
           triggerSyncFallback();
           return;
         }
@@ -171,6 +185,21 @@ export const useMealResultsViewModel = (navigation, route) => {
     );
     try {
       await mealAPI.updatePreference(recipeId, preference);
+      if (preference === 'LIKE') {
+        try {
+        const refreshed = await mealAPI.getRecipe(recipeId);
+        const normalized = normalizeRecipe(refreshed.data || {}, recipeId);
+        setRecipes((current) =>
+          current.map((r) => (r.id === recipeId ? { ...r, ...normalized } : r))
+        );
+        setRecipePreferenceMap((current) => ({
+          ...current,
+          [recipeId]: normalized.preference ?? preference,
+        }));
+        } catch (refreshError) {
+          console.error('Refresh liked recipe details failed:', refreshError);
+        }
+      }
     } catch (error) {
       console.error('Update recipe preference failed:', error);
       setRecipePreferenceMap((current) => ({ ...current, [recipeId]: previousPreference }));
@@ -208,11 +237,11 @@ export const useMealResultsViewModel = (navigation, route) => {
         streamingRequest?.staple ||
         normalizedRecommendation.form?.staple ||
         null,
-      provider: normalizedRecommendation.provider,
+      reasonSummary,
       emptyState: normalizedRecommendation.emptyState,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [streamingRequest, recipes.length]
+    [streamingRequest, recipes.length, reasonSummary]
   );
 
   const stapleHint = useMemo(() => {
@@ -222,12 +251,19 @@ export const useMealResultsViewModel = (navigation, route) => {
     return `您选择的主食（${info.label}）参考用量约 ${info.grams}${info.unit}，预估 ${info.calories} 千卡。剔除这部分热量后，其余菜品按热量分配推荐如下。`;
   }, [displayMeta.staple]);
 
+  const stapleTag = useMemo(() => {
+    if (!displayMeta.staple) return null;
+    return STAPLE_INFO[displayMeta.staple]?.label || '不吃主食';
+  }, [displayMeta.staple]);
+
   const calorieOverageHint = useMemo(() => {
     if (streaming || !displayMeta.calories || recipes.length === 0) return null;
-    const totalActual = recipes.reduce((sum, r) => sum + (r.estimatedCalories || 0), 0);
-    if (totalActual <= 0 || totalActual <= displayMeta.calories) return null;
-    return `菜品实际估算热量约 ${totalActual} 千卡，超出了您设定的 ${displayMeta.calories} 千卡上限，可酌情减少食材用量。`;
-  }, [streaming, recipes, displayMeta.calories]);
+    const dishCalories = recipes.reduce((sum, r) => sum + (r.estimatedCalories || 0), 0);
+    const stapleCalories = STAPLE_INFO[displayMeta.staple]?.calories || 0;
+    const combinedCalories = dishCalories + stapleCalories;
+    if (dishCalories <= 0 || combinedCalories <= displayMeta.calories) return null;
+    return `当前 ${recipes.length} 道菜约 ${dishCalories} 千卡，搭配主食后总计约 ${combinedCalories} 千卡，超出了您设定的 ${displayMeta.calories} 千卡。建议减少 1 道菜、适当减量，或改成更轻的主食搭配。`;
+  }, [streaming, recipes, displayMeta.calories, displayMeta.staple]);
 
   const recipesWithPreferences = useMemo(
     () =>
@@ -248,6 +284,8 @@ export const useMealResultsViewModel = (navigation, route) => {
     streamError,
     pendingRecipeId,
     displayMeta,
+    reasonSummary,
+    stapleTag,
     stapleHint,
     calorieOverageHint,
     skeletonCount,

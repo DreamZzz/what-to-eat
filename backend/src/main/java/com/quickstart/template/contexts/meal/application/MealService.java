@@ -5,6 +5,7 @@ import com.quickstart.template.contexts.account.infrastructure.persistence.UserR
 import com.quickstart.template.contexts.meal.api.dto.MealRecommendationRequestDTO;
 import com.quickstart.template.contexts.meal.api.dto.MealRecommendationResponseDTO;
 import com.quickstart.template.contexts.meal.api.dto.MealCatalogResponseDTO;
+import com.quickstart.template.contexts.meal.api.dto.MealIntentResponseDTO;
 import com.quickstart.template.contexts.meal.api.dto.MealRecipeCollectionResponseDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeDTO;
 import com.quickstart.template.contexts.meal.api.dto.RecipeImageResponseDTO;
@@ -64,6 +65,7 @@ public class MealService {
     private final MealImageProvider mealImageProvider;
     private final MealRecipeMapper mealRecipeMapper;
     private final MealCatalogService mealCatalogService;
+    private final MealIntentService mealIntentService;
     private final TransactionTemplate transactionTemplate;
 
     public MealService(
@@ -73,6 +75,7 @@ public class MealService {
             MealImageProvider mealImageProvider,
             MealRecipeMapper mealRecipeMapper,
             MealCatalogService mealCatalogService,
+            MealIntentService mealIntentService,
             PlatformTransactionManager transactionManager) {
         this.mealRecipeRepository = mealRecipeRepository;
         this.userRepository = userRepository;
@@ -80,11 +83,13 @@ public class MealService {
         this.mealImageProvider = mealImageProvider;
         this.mealRecipeMapper = mealRecipeMapper;
         this.mealCatalogService = mealCatalogService;
+        this.mealIntentService = mealIntentService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     @Transactional
     public MealRecommendationResponseDTO recommendRecipes(MealRecommendationRequestDTO request, Long userId) {
+        applyIntentNormalization(request);
         User user = resolveUser(userId);
         MealCatalogItem catalogItem = resolveCatalogItem(request.getCatalogItemId());
         Optional<MealRecommendationResponseDTO> cachedResponse = reuseExistingRecipes(request, user, catalogItem);
@@ -131,6 +136,7 @@ public class MealService {
                 requestId,
                 request,
                 generationResult.getProvider(),
+                generationResult.getReasonSummary(),
                 recipes,
                 generationResult.isEmptyState() || recipes.isEmpty()
         );
@@ -193,6 +199,26 @@ public class MealService {
             return Optional.empty();
         }
 
+        if (request.getDishCount() != null
+                && request.getDishCount() > 0
+                && cachedRecipes.size() < request.getDishCount()) {
+            log.warn(
+                    "Meal recommendation cache skipped for requestId={} because cached recipe count {} is below requested {}",
+                    reusableRequestId.get(),
+                    cachedRecipes.size(),
+                    request.getDishCount()
+            );
+            return Optional.empty();
+        }
+
+        if (!cachedRecipes.stream()
+                .map(MealRecipe::getTitle)
+                .allMatch(title -> mealCatalogService.resolveCatalogTitle(title).isPresent())) {
+            log.warn("Meal recommendation cache skipped for requestId={} because cached titles are not valid catalog dishes",
+                    reusableRequestId.get());
+            return Optional.empty();
+        }
+
         Long cachedOwnerId = cachedRecipes.get(0).getUser() == null ? null : cachedRecipes.get(0).getUser().getId();
         if (Objects.equals(cachedOwnerId, user.getId())) {
             log.info("Meal recommendation cache hit requestId={} userId={}", reusableRequestId.get(), user.getId());
@@ -200,6 +226,7 @@ public class MealService {
                     reusableRequestId.get(),
                     request,
                     "database",
+                    buildFallbackReasonSummary(request, mealRecipeMapper.toRecipeList(cachedRecipes)),
                     mealRecipeMapper.toRecipeList(cachedRecipes),
                     false
             ));
@@ -226,6 +253,7 @@ public class MealService {
                 clonedRequestId,
                 request,
                 "database",
+                buildFallbackReasonSummary(request, clonedRecipes),
                 clonedRecipes,
                 clonedRecipes.isEmpty()
         ));
@@ -240,19 +268,22 @@ public class MealService {
     public void streamRecommendations(
             MealRecommendationRequestDTO request,
             Long userId,
+            Consumer<String> onSummary,
             Consumer<RecipeDTO> onRecipe
     ) {
+        applyIntentNormalization(request);
         // Phase 1: check cache (needs a transaction for potential clone saveAll)
-        List<RecipeDTO> cached = transactionTemplate.execute(status -> {
+        MealRecommendationResponseDTO cachedResponse = transactionTemplate.execute(status -> {
             User user = resolveUser(userId);
             MealCatalogItem catalogItem = resolveCatalogItem(request.getCatalogItemId());
-            return reuseExistingRecipes(request, user, catalogItem)
-                    .map(MealRecommendationResponseDTO::getItems)
-                    .orElse(null);
+            return reuseExistingRecipes(request, user, catalogItem).orElse(null);
         });
 
-        if (cached != null) {
-            cached.forEach(onRecipe);
+        if (cachedResponse != null) {
+            if (cachedResponse.getReasonSummary() != null && !cachedResponse.getReasonSummary().isBlank()) {
+                onSummary.accept(cachedResponse.getReasonSummary());
+            }
+            cachedResponse.getItems().forEach(onRecipe);
             return;
         }
 
@@ -266,26 +297,30 @@ public class MealService {
         injectRecentDishHistory(request, userId);
 
         int maxDishes = request.getDishCount() != null ? request.getDishCount() : 1;
-        mealGenerationProvider.generateStream(request, constrainedStreamConsumer(catalogItemId, maxDishes, recipe -> {
-            recipe.setImageStatus("PENDING");
-            recipe.setImageUrl(null);
-            recipe.setPreference(null);
-            recipe.setCatalogItemId(catalogItemId);
+        mealGenerationProvider.generateStream(
+                request,
+                onSummary,
+                constrainedStreamConsumer(catalogItemId, maxDishes, recipe -> {
+                    recipe.setImageStatus("PENDING");
+                    recipe.setImageUrl(null);
+                    recipe.setPreference(null);
+                    recipe.setCatalogItemId(catalogItemId);
 
-            transactionTemplate.executeWithoutResult(status -> {
-                User txUser = userRepository.getReferenceById(userId);
-                MealCatalogItem txCatalogItem = catalogItemId != null
-                        ? mealCatalogService.findItemById(catalogItemId).orElse(null)
-                        : null;
-                MealRecipe entity = mealRecipeMapper.toMealRecipe(
-                        txUser, request, txCatalogItem, requestId, providerName, recipe);
-                MealRecipe saved = mealRecipeRepository.save(entity);
-                recipe.setId(saved.getId());
-                recipe.setImageStatus(saved.getImageStatus());
-            });
+                    transactionTemplate.executeWithoutResult(status -> {
+                        User txUser = userRepository.getReferenceById(userId);
+                        MealCatalogItem txCatalogItem = catalogItemId != null
+                                ? mealCatalogService.findItemById(catalogItemId).orElse(null)
+                                : null;
+                        MealRecipe entity = mealRecipeMapper.toMealRecipe(
+                                txUser, request, txCatalogItem, requestId, providerName, recipe);
+                        MealRecipe saved = mealRecipeRepository.save(entity);
+                        recipe.setId(saved.getId());
+                        recipe.setImageStatus(saved.getImageStatus());
+                    });
 
-            onRecipe.accept(recipe);
-        }));
+                    onRecipe.accept(recipe);
+                })
+        );
     }
 
     /**
@@ -302,6 +337,17 @@ public class MealService {
             Consumer<RecipeStepTokenDTO> onToken,
             Consumer<RecipeStepDTO> onStep
     ) {
+        streamRecipeSteps(recipeId, userId, locale, onToken, onStep, () -> { });
+    }
+
+    public void streamRecipeSteps(
+            Long recipeId,
+            Long userId,
+            String locale,
+            Consumer<RecipeStepTokenDTO> onToken,
+            Consumer<RecipeStepDTO> onStep,
+            Runnable onStreamComplete
+    ) {
         // Load the recipe (needs a transaction)
         MealRecipe entity = transactionTemplate.execute(status ->
                 mealRecipeRepository.findByIdAndUserId(recipeId, userId).orElse(null));
@@ -316,6 +362,7 @@ public class MealService {
             if (existing.getSteps() != null) {
                 existing.getSteps().forEach(onStep);
             }
+            onStreamComplete.run();
             return;
         }
 
@@ -327,6 +374,7 @@ public class MealService {
             allSteps.add(step);
             onStep.accept(step);
         });
+        onStreamComplete.run();
 
         // Persist steps after successful streaming (new transaction)
         if (!allSteps.isEmpty()) {
@@ -350,6 +398,10 @@ public class MealService {
         return mealCatalogService.getCatalog();
     }
 
+    public MealIntentResponseDTO analyzeIntent(String sourceText) {
+        return mealIntentService.toResponse(mealIntentService.analyze(sourceText));
+    }
+
     public Optional<RecipeDTO> getRecipe(Long recipeId, Long userId) {
         return mealRecipeRepository.findByIdAndUserId(recipeId, userId)
                 .map(mealRecipeMapper::toRecipeDTO);
@@ -363,6 +415,9 @@ public class MealService {
         }
 
         MealRecipe recipe = recipeOptional.get();
+        if (PREFERENCE_LIKE.equals(preference)) {
+            enrichRecipeDetailsForFavorite(recipe);
+        }
         recipe.setPreference(preference);
         recipe.setUpdatedAt(LocalDateTime.now());
         MealRecipe saved = mealRecipeRepository.save(recipe);
@@ -372,6 +427,66 @@ public class MealService {
         response.setPreference(saved.getPreference());
         response.setUpdatedAt(saved.getUpdatedAt() != null ? saved.getUpdatedAt() : recipe.getUpdatedAt());
         return Optional.of(response);
+    }
+
+    private void enrichRecipeDetailsForFavorite(MealRecipe recipe) {
+        if (shouldFetchImageForFavorite(recipe)) {
+            RecipeDTO recipeCard = mealRecipeMapper.toRecipeDTO(recipe);
+            MealImageResult imageResult;
+            try {
+                imageResult = mealImageProvider.generate(null, recipeCard);
+            } catch (MealGenerationException exception) {
+                throw exception;
+            } catch (Exception exception) {
+                throw new MealGenerationException("收藏前补齐菜谱图片失败，请重试", false, exception);
+            }
+
+            if (imageResult == null
+                    || imageResult.getImageUrl() == null
+                    || imageResult.getImageUrl().isBlank()
+                    || !"GENERATED".equals(imageResult.getImageStatus())) {
+                throw new MealGenerationException("收藏前补齐菜谱图片失败，请重试", false);
+            }
+
+            recipe.setImageUrl(imageResult.getImageUrl());
+            recipe.setImageStatus(imageResult.getImageStatus());
+        }
+
+        if (shouldGenerateStepsForFavorite(recipe)) {
+            RecipeDTO recipeCard = mealRecipeMapper.toRecipeDTO(recipe);
+            List<RecipeStepDTO> generatedSteps = new ArrayList<>();
+            String locale = normalizeNullableText(recipe.getLocale());
+
+            try {
+                mealGenerationProvider.streamRecipeSteps(
+                        recipeCard,
+                        locale == null ? "zh-CN" : locale,
+                        token -> { },
+                        generatedSteps::add
+                );
+            } catch (MealGenerationException exception) {
+                throw exception;
+            } catch (Exception exception) {
+                throw new MealGenerationException("收藏前补齐详细做法失败，请重试", false, exception);
+            }
+
+            if (generatedSteps.isEmpty()) {
+                throw new MealGenerationException("收藏前补齐详细做法失败，请重试", false);
+            }
+
+            recipe.setStepsJson(mealRecipeMapper.writeStepsJson(generatedSteps));
+            recipe.setStepsStatus("GENERATED");
+        }
+    }
+
+    private boolean shouldFetchImageForFavorite(MealRecipe recipe) {
+        return "PENDING".equals(recipe.getImageStatus());
+    }
+
+    private boolean shouldGenerateStepsForFavorite(MealRecipe recipe) {
+        return "PENDING".equals(recipe.getStepsStatus())
+                || recipe.getStepsJson() == null
+                || recipe.getStepsJson().isBlank();
     }
 
     public MealRecipeCollectionResponseDTO getFavorites(Long userId, Pageable pageable) {
@@ -412,6 +527,53 @@ public class MealService {
         }
         String normalized = value.trim();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private void applyIntentNormalization(MealRecommendationRequestDTO request) {
+        if (request == null || request.getSourceText() == null) {
+            return;
+        }
+        MealIntentService.MealIntentAnalysis analysis = mealIntentService.analyze(request.getSourceText());
+        if (analysis.normalizedSourceText() != null && !analysis.normalizedSourceText().isBlank()) {
+            request.setSourceText(analysis.normalizedSourceText());
+        }
+        if (request.getCatalogItemId() == null && analysis.catalogItemId() != null) {
+            request.setCatalogItemId(analysis.catalogItemId());
+        }
+    }
+
+    private String buildFallbackReasonSummary(MealRecommendationRequestDTO request, List<RecipeDTO> recipes) {
+        if (recipes == null || recipes.isEmpty()) {
+            return null;
+        }
+        String titles = recipes.stream()
+                .map(RecipeDTO::getTitle)
+                .filter(Objects::nonNull)
+                .limit(3)
+                .reduce((left, right) -> left + "、" + right)
+                .orElse("这组菜");
+        String normalizedStaple = normalizeNullableText(request.getStaple());
+        String staple;
+        if (normalizedStaple == null) {
+            staple = "主食不限";
+        } else if ("RICE".equals(normalizedStaple)) {
+            staple = "米饭";
+        } else if ("NOODLES".equals(normalizedStaple)) {
+            staple = "面条";
+        } else if ("COARSE_GRAINS".equals(normalizedStaple)) {
+            staple = "粗粮";
+        } else if ("NO_STAPLE".equals(normalizedStaple)) {
+            staple = "不吃主食";
+        } else {
+            staple = request.getStaple();
+        }
+        return String.format(
+                "根据你想吃的“%s”，先为你组合了 %s 这几道更贴近当前方向的菜，再按 %d 道菜和 %s 的设定去补齐整桌搭配。",
+                request.getSourceText(),
+                titles,
+                request.getDishCount() == null ? recipes.size() : request.getDishCount(),
+                staple
+        );
     }
 
     /**

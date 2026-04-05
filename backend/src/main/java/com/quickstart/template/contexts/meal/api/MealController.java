@@ -2,6 +2,8 @@ package com.quickstart.template.contexts.meal.api;
 
 import com.quickstart.template.contexts.account.domain.User;
 import com.quickstart.template.contexts.meal.api.dto.MealCatalogResponseDTO;
+import com.quickstart.template.contexts.meal.api.dto.MealIntentRequestDTO;
+import com.quickstart.template.contexts.meal.api.dto.MealIntentResponseDTO;
 import com.quickstart.template.contexts.meal.api.dto.MealRecommendationRequestDTO;
 import com.quickstart.template.contexts.meal.api.dto.MealRecommendationResponseDTO;
 import com.quickstart.template.contexts.meal.api.dto.MealRecipeCollectionResponseDTO;
@@ -63,6 +65,17 @@ public class MealController {
         }
     }
 
+    @PostMapping("/intent")
+    public ResponseEntity<?> analyzeIntent(@Valid @RequestBody MealIntentRequestDTO request) {
+        Optional<Long> currentUserId = getCurrentUserId();
+        if (currentUserId.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new MessageResponse("Authentication required"));
+        }
+
+        MealIntentResponseDTO response = mealService.analyzeIntent(request.getSourceText());
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping(value = "/recommendations/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamRecommendations(@Valid @RequestBody MealRecommendationRequestDTO request) {
         Optional<Long> currentUserId = getCurrentUserId();
@@ -83,13 +96,22 @@ public class MealController {
 
         CompletableFuture.runAsync(() -> {
             try {
-                mealService.streamRecommendations(request, userId, recipe -> {
+                mealService.streamRecommendations(request, userId, reasonSummary -> {
+                    try {
+                        emitter.send(SseEmitter.event()
+                                .name("summary")
+                                .data(new MealStreamSummaryResponse(reasonSummary), MediaType.APPLICATION_JSON));
+                    } catch (IOException e) {
+                        throw new RuntimeException("SSE write failed", e);
+                    }
+                }, recipe -> {
                     try {
                         emitter.send(SseEmitter.event().name("recipe").data(recipe, MediaType.APPLICATION_JSON));
                     } catch (IOException e) {
                         throw new RuntimeException("SSE write failed", e);
                     }
                 });
+                emitter.send(SseEmitter.event().name("done").data("{\"complete\":true}", MediaType.APPLICATION_JSON));
                 emitter.complete();
             } catch (MealGenerationException e) {
                 sendErrorAndComplete(emitter, e.getMessage());
@@ -157,6 +179,12 @@ public class MealController {
                     } catch (IOException e) {
                         throw new RuntimeException("SSE write failed", e);
                     }
+                }, () -> {
+                    try {
+                        emitter.send(SseEmitter.event().name("done").data("{\"complete\":true}", MediaType.APPLICATION_JSON));
+                    } catch (IOException e) {
+                        throw new RuntimeException("SSE write failed", e);
+                    }
                 });
                 emitter.complete();
             } catch (IllegalArgumentException e) {
@@ -192,9 +220,23 @@ public class MealController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new MessageResponse("Authentication required"));
         }
 
-        Optional<RecipePreferenceResponseDTO> response = mealService.updatePreference(recipeId, request.getPreference(), currentUserId.get());
-        return response.<ResponseEntity<?>>map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("Recipe not found")));
+        try {
+            Optional<RecipePreferenceResponseDTO> response = mealService.updatePreference(
+                    recipeId,
+                    request.getPreference(),
+                    currentUserId.get()
+            );
+            return response.<ResponseEntity<?>>map(ResponseEntity::ok)
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("Recipe not found")));
+        } catch (MealGenerationException exception) {
+            HttpStatus status = exception.isConfiguration() ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_GATEWAY;
+            return ResponseEntity.status(status).body(new MessageResponse(
+                    exception.getMessage(),
+                    "recipe-ai",
+                    exception.isConfiguration() ? "mock" : "openai-compatible",
+                    exception.isConfiguration()
+            ));
+        }
     }
 
     @GetMapping("/favorites")
@@ -229,5 +271,8 @@ public class MealController {
             return DEFAULT_PAGE_SIZE;
         }
         return Math.min(size, DEFAULT_PAGE_SIZE);
+    }
+
+    private record MealStreamSummaryResponse(String reasonSummary) {
     }
 }

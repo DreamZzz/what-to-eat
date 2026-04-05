@@ -20,6 +20,7 @@ jest.mock('../../src/features/meal/api', () => ({
   },
   mealAPI: {
     getCatalog: jest.fn(),
+    analyzeIntent: jest.fn(),
   },
 }));
 
@@ -61,6 +62,7 @@ describe('HomeScreen', () => {
     jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     await AsyncStorage.clear();
     mealAPI.getCatalog.mockReset();
+    mealAPI.analyzeIntent.mockReset();
     voiceAPI.transcribe.mockReset();
     requestVoicePermission.mockReset();
     startVoiceRecording.mockReset();
@@ -82,6 +84,15 @@ describe('HomeScreen', () => {
         datasetVersion: '2026-03',
         total: catalogItems.length,
         items: catalogItems,
+      },
+    });
+    mealAPI.analyzeIntent.mockResolvedValue({
+      data: {
+        decision: 'PROCEED',
+        normalizedSourceText: '',
+        clarificationQuestion: null,
+        catalogFirst: false,
+        catalogItemId: null,
       },
     });
   });
@@ -179,6 +190,10 @@ describe('HomeScreen', () => {
       await flushMicrotasks();
     });
 
+    expect(mealAPI.analyzeIntent).toHaveBeenCalledWith({
+      sourceText: '东北菜',
+      locale: 'zh-CN',
+    });
     expect(navigation.navigate).toHaveBeenCalledWith(
       'MealForm',
       expect.objectContaining({
@@ -216,6 +231,62 @@ describe('HomeScreen', () => {
       'MealForm',
       expect.objectContaining({
         sourceText: '川菜',
+        sourceMode: 'TEXT',
+        catalogItemId: null,
+      })
+    );
+  });
+
+  it('asks for confirmation when the backend flags a low-related ambiguous input', async () => {
+    mealAPI.analyzeIntent.mockResolvedValueOnce({
+      data: {
+        decision: 'CLARIFY',
+        normalizedSourceText: '家常菜',
+        clarificationQuestion: '你是想吃家常菜吗？',
+        catalogFirst: true,
+        catalogItemId: null,
+      },
+    });
+
+    const navigation = {
+      navigate: jest.fn(),
+    };
+
+    let renderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(<HomeScreen navigation={navigation} />);
+      await flushMicrotasks();
+    });
+
+    const input = renderer.root.findByProps({ testID: 'home-text-input' });
+
+    await ReactTestRenderer.act(async () => {
+      input.props.onChangeText('家');
+      await flushMicrotasks();
+    });
+
+    await ReactTestRenderer.act(async () => {
+      await input.props.onSubmitEditing();
+      await flushMicrotasks();
+    });
+
+    expect(Alert.alert).toHaveBeenCalledWith(
+      '先确认一下',
+      '你是想吃家常菜吗？',
+      expect.arrayContaining([
+        expect.objectContaining({ text: '再想想', style: 'cancel' }),
+        expect.objectContaining({ text: '是的', onPress: expect.any(Function) }),
+      ])
+    );
+
+    const confirmAction = Alert.alert.mock.calls.at(-1)?.[2]?.find((item) => item.text === '是的');
+    expect(confirmAction).toBeTruthy();
+    confirmAction.onPress();
+
+    expect(navigation.navigate).toHaveBeenCalledWith(
+      'MealForm',
+      expect.objectContaining({
+        sourceText: '家常菜',
         sourceMode: 'TEXT',
         catalogItemId: null,
       })

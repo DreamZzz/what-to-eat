@@ -294,8 +294,11 @@ resolve_runtime_config() {
             ;;
         remote)
             if [ "$CONFIG_PLATFORM" = "ios" ]; then
-                API_BASE_URL="http://127.0.0.1:18080"
-                PROXY_TARGET="$DEFAULT_REMOTE_PROXY_TARGET"
+                # Simulator remote mode can reach the public HTTPS backend directly.
+                # Bypassing the local loopback proxy avoids SSE stalls where the
+                # recipe stream never leaves the host and the results page times out.
+                API_BASE_URL="$DEFAULT_REMOTE_API_BASE_URL"
+                PROXY_TARGET=""
             elif [ "$CONFIG_PLATFORM" = "device" ]; then
                 API_BASE_URL="$DEFAULT_REMOTE_API_BASE_URL"
                 PROXY_TARGET=""
@@ -328,6 +331,10 @@ write_runtime_config() {
 
 stop_existing_proxy() {
     local proxy_pids
+    if [ -z "$PROXY_TARGET" ]; then
+        return 0
+    fi
+
     proxy_pids=$(lsof -ti tcp:18080 2>/dev/null || true)
 
     if [ -n "$proxy_pids" ]; then
@@ -338,6 +345,10 @@ stop_existing_proxy() {
 }
 
 start_api_proxy_background() {
+    if [ -z "$PROXY_TARGET" ]; then
+        return 0
+    fi
+
     print_info "启动本地API代理（${PROXY_BIND_HOST}:18080 -> ${PROXY_TARGET}）..."
     stop_existing_proxy
 

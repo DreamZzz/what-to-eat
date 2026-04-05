@@ -37,9 +37,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -60,6 +63,9 @@ class MealServiceTest {
 
     @Mock
     private MealCatalogService mealCatalogService;
+
+    @Mock
+    private MealIntentService mealIntentService;
 
     private final MealRecipeMapper mealRecipeMapper = new MealRecipeMapper(new ObjectMapper());
     private MealService mealService;
@@ -87,11 +93,22 @@ class MealServiceTest {
                 mealImageProvider,
                 mealRecipeMapper,
                 mealCatalogService,
+                mealIntentService,
                 NO_OP_TX_MANAGER
         );
         user = new User();
         user.setId(1L);
         user.setUsername("demo_admin");
+        lenient().when(mealIntentService.analyze(any())).thenAnswer(invocation -> {
+            String sourceText = invocation.getArgument(0);
+            return new MealIntentService.MealIntentAnalysis(
+                    MealIntentService.MealIntentDecision.PROCEED,
+                    sourceText,
+                    null,
+                    false,
+                    null
+            );
+        });
     }
 
     @Test
@@ -203,6 +220,7 @@ class MealServiceTest {
         )).thenReturn(Optional.of("cached-request-1"));
         when(mealRecipeRepository.findAllByRequestIdOrderByIdAsc("cached-request-1"))
                 .thenReturn(List.of(cachedRecipe));
+        when(mealCatalogService.resolveCatalogTitle("番茄鸡蛋面")).thenReturn(Optional.of("番茄鸡蛋面"));
 
         MealRecommendationResponseDTO response = mealService.recommendRecipes(request, 1L);
 
@@ -264,6 +282,7 @@ class MealServiceTest {
         )).thenReturn(Optional.of("cached-request-2"));
         when(mealRecipeRepository.findAllByRequestIdOrderByIdAsc("cached-request-2"))
                 .thenReturn(List.of(cachedRecipe));
+        when(mealCatalogService.resolveCatalogTitle("番茄鸡蛋面")).thenReturn(Optional.of("番茄鸡蛋面"));
         when(mealRecipeRepository.saveAll(any())).thenAnswer(invocation -> {
             List<MealRecipe> entities = invocation.getArgument(0);
             entities.get(0).setId(303L);
@@ -293,6 +312,131 @@ class MealServiceTest {
     }
 
     @Test
+    @DisplayName("recommendRecipes should ignore cached recipes whose titles are not valid catalog dishes")
+    void recommendRecipes_ShouldIgnoreInvalidCachedTitles() {
+        MealRecommendationRequestDTO request = new MealRecommendationRequestDTO();
+        request.setSourceText("家");
+        request.setSourceMode("TEXT");
+        request.setDishCount(1);
+        request.setTotalCalories(400);
+        request.setStaple("RICE");
+        request.setLocale("zh-CN");
+
+        MealRecipe cachedRecipe = new MealRecipe();
+        cachedRecipe.setId(901L);
+        cachedRecipe.setRequestId("cached-invalid-title");
+        cachedRecipe.setUser(user);
+        cachedRecipe.setTitle("家");
+        cachedRecipe.setSummary("错误缓存");
+        cachedRecipe.setImageStatus("PENDING");
+
+        RecipeDTO generatedRecipe = new RecipeDTO();
+        generatedRecipe.setTitle("青椒肉丝");
+        generatedRecipe.setSummary("重新生成后的真实菜名");
+        generatedRecipe.setEstimatedCalories(320);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(mealRecipeRepository.findLatestReusableRequestId(
+                eq("家"),
+                eq(1),
+                eq(400),
+                eq("RICE"),
+                eq("zh-CN"),
+                eq(null)
+        )).thenReturn(Optional.of("cached-invalid-title"));
+        when(mealRecipeRepository.findAllByRequestIdOrderByIdAsc("cached-invalid-title"))
+                .thenReturn(List.of(cachedRecipe));
+        when(mealCatalogService.resolveCatalogTitle("家")).thenReturn(Optional.empty());
+        when(mealGenerationProvider.generate(request))
+                .thenReturn(new MealGenerationResult("mock", List.of(generatedRecipe), false));
+        when(mealRecipeRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<MealRecipe> entities = invocation.getArgument(0);
+            entities.get(0).setId(902L);
+            return entities;
+        });
+
+        MealRecommendationResponseDTO response = mealService.recommendRecipes(request, 1L);
+
+        assertEquals("mock", response.getProvider());
+        assertEquals("青椒肉丝", response.getItems().get(0).getTitle());
+        verify(mealGenerationProvider).generate(request);
+    }
+
+    @Test
+    @DisplayName("recommendRecipes should ignore incomplete cached batches whose recipe count is below requested dish count")
+    void recommendRecipes_ShouldIgnoreIncompleteCachedBatch() {
+        MealRecommendationRequestDTO request = new MealRecommendationRequestDTO();
+        request.setSourceText("川菜");
+        request.setSourceMode("TEXT");
+        request.setDishCount(3);
+        request.setTotalCalories(900);
+        request.setStaple("RICE");
+        request.setLocale("zh-CN");
+
+        MealRecipe cachedOne = new MealRecipe();
+        cachedOne.setId(601L);
+        cachedOne.setRequestId("cached-partial");
+        cachedOne.setUser(user);
+        cachedOne.setTitle("鱼香肉丝");
+        cachedOne.setSummary("第一道");
+        cachedOne.setImageStatus("PENDING");
+
+        MealRecipe cachedTwo = new MealRecipe();
+        cachedTwo.setId(602L);
+        cachedTwo.setRequestId("cached-partial");
+        cachedTwo.setUser(user);
+        cachedTwo.setTitle("宫保鸡丁");
+        cachedTwo.setSummary("第二道");
+        cachedTwo.setImageStatus("PENDING");
+
+        RecipeDTO regeneratedOne = new RecipeDTO();
+        regeneratedOne.setTitle("鱼香肉丝");
+        regeneratedOne.setSummary("第一道");
+        regeneratedOne.setEstimatedCalories(420);
+
+        RecipeDTO regeneratedTwo = new RecipeDTO();
+        regeneratedTwo.setTitle("宫保鸡丁");
+        regeneratedTwo.setSummary("第二道");
+        regeneratedTwo.setEstimatedCalories(430);
+
+        RecipeDTO regeneratedThree = new RecipeDTO();
+        regeneratedThree.setTitle("麻婆豆腐");
+        regeneratedThree.setSummary("第三道");
+        regeneratedThree.setEstimatedCalories(310);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(mealRecipeRepository.findLatestReusableRequestId(
+                eq("川菜"),
+                eq(3),
+                eq(900),
+                eq("RICE"),
+                eq("zh-CN"),
+                eq(null)
+        )).thenReturn(Optional.of("cached-partial"));
+        when(mealRecipeRepository.findAllByRequestIdOrderByIdAsc("cached-partial"))
+                .thenReturn(List.of(cachedOne, cachedTwo));
+        when(mealGenerationProvider.generate(request)).thenReturn(
+                new MealGenerationResult("mock", List.of(regeneratedOne, regeneratedTwo, regeneratedThree), false)
+        );
+        when(mealRecipeRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<MealRecipe> entities = invocation.getArgument(0);
+            long nextId = 701L;
+            for (MealRecipe entity : entities) {
+                entity.setId(nextId++);
+            }
+            return entities;
+        });
+
+        MealRecommendationResponseDTO response = mealService.recommendRecipes(request, 1L);
+
+        assertEquals("mock", response.getProvider());
+        assertEquals(3, response.getItems().size());
+        assertEquals("麻婆豆腐", response.getItems().get(2).getTitle());
+        verify(mealGenerationProvider).generate(request);
+        verify(mealRecipeRepository).saveAll(any());
+    }
+
+    @Test
     @DisplayName("updatePreference should upsert preference for the current user")
     void updatePreference_ShouldUpsertPreference() {
         MealRecipe recipe = new MealRecipe();
@@ -302,13 +446,85 @@ class MealServiceTest {
         when(mealRecipeRepository.findByIdAndUserId(9L, 1L)).thenReturn(Optional.of(recipe));
         when(mealRecipeRepository.save(any(MealRecipe.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Optional<RecipePreferenceResponseDTO> response = mealService.updatePreference(9L, "LIKE", 1L);
+        Optional<RecipePreferenceResponseDTO> response = mealService.updatePreference(9L, "DISLIKE", 1L);
 
         assertTrue(response.isPresent());
         assertEquals(9L, response.get().getRecipeId());
-        assertEquals("LIKE", response.get().getPreference());
+        assertEquals("DISLIKE", response.get().getPreference());
         assertNotNull(response.get().getUpdatedAt());
+        assertEquals("DISLIKE", recipe.getPreference());
+    }
+
+    @Test
+    @DisplayName("updatePreference should enrich image and steps before liking a recipe")
+    void updatePreference_ShouldEnrichRecipeDetailsBeforeLike() {
+        MealRecipe recipe = new MealRecipe();
+        recipe.setId(9L);
+        recipe.setTitle("麻婆豆腐");
+        recipe.setSummary("麻辣下饭");
+        recipe.setLocale("zh-CN");
+        recipe.setImageStatus("PENDING");
+        recipe.setStepsStatus("PENDING");
+        recipe.setPreference(null);
+
+        when(mealRecipeRepository.findByIdAndUserId(9L, 1L)).thenReturn(Optional.of(recipe));
+        when(mealImageProvider.generate(eq(null), any(RecipeDTO.class)))
+                .thenReturn(new MealImageResult("oss", "https://oss.example.com/mapo.jpg", "GENERATED"));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            java.util.function.Consumer<RecipeStepDTO> onStep = invocation.getArgument(3);
+            RecipeStepDTO step = new RecipeStepDTO();
+            step.setIndex(1);
+            step.setContent("热锅下油后放入豆瓣酱炒香。");
+            onStep.accept(step);
+            return null;
+        }).when(mealGenerationProvider).streamRecipeSteps(
+                any(RecipeDTO.class),
+                eq("zh-CN"),
+                any(),
+                any()
+        );
+        when(mealRecipeRepository.save(any(MealRecipe.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Optional<RecipePreferenceResponseDTO> response = mealService.updatePreference(9L, "LIKE", 1L);
+
+        assertTrue(response.isPresent());
         assertEquals("LIKE", recipe.getPreference());
+        assertEquals("GENERATED", recipe.getImageStatus());
+        assertEquals("https://oss.example.com/mapo.jpg", recipe.getImageUrl());
+        assertEquals("GENERATED", recipe.getStepsStatus());
+        assertNotNull(recipe.getStepsJson());
+        verify(mealImageProvider).generate(eq(null), any(RecipeDTO.class));
+        verify(mealGenerationProvider).streamRecipeSteps(any(RecipeDTO.class), eq("zh-CN"), any(), any());
+    }
+
+    @Test
+    @DisplayName("updatePreference should fail when favorite enrichment cannot generate steps")
+    void updatePreference_ShouldFailWhenFavoriteEnrichmentFails() {
+        MealRecipe recipe = new MealRecipe();
+        recipe.setId(9L);
+        recipe.setTitle("麻婆豆腐");
+        recipe.setLocale("zh-CN");
+        recipe.setImageStatus("GENERATED");
+        recipe.setImageUrl("https://oss.example.com/mapo.jpg");
+        recipe.setStepsStatus("PENDING");
+
+        when(mealRecipeRepository.findByIdAndUserId(9L, 1L)).thenReturn(Optional.of(recipe));
+        doAnswer(invocation -> null).when(mealGenerationProvider).streamRecipeSteps(
+                any(RecipeDTO.class),
+                eq("zh-CN"),
+                any(),
+                any()
+        );
+
+        MealGenerationException exception = assertThrows(
+                MealGenerationException.class,
+                () -> mealService.updatePreference(9L, "LIKE", 1L)
+        );
+
+        assertEquals("收藏前补齐详细做法失败，请重试", exception.getMessage());
+        assertNull(recipe.getPreference());
+        verify(mealRecipeRepository, never()).save(any(MealRecipe.class));
     }
 
     @Test

@@ -18,6 +18,7 @@
 
 ## 上线前最重要的开关
 
+- `APP_JWT_EXPIRATION_MS`
 - `APP_MEDIA_STORAGE_PROVIDER`
 - `APP_AUTH_PASSWORD_RESET_PROVIDER`
 - `APP_AUTH_SMS_PROVIDER`
@@ -42,6 +43,7 @@
 ## what-to-eat 首版发布注意事项
 
 - 前端仅以 iOS 为发布目标；Android 不在本次发布范围。
+- `APP_JWT_EXPIRATION_MS` 需要按毫秒配置，生产可使用 30 天级别的 long 值，例如 `2592000000`；不要再按 Java `int` 上限假设处理。
 - 所有 meal/voice/favorites 接口需要登录，Nginx 与 smoke 要覆盖鉴权场景。
 - 语音文件上传体积和超时时间需要与 Nginx/body-size 配置一致。
 - 菜谱图片采用异步补图；主请求先返回 `imageStatus=PENDING`，客户端再逐道触发补图。

@@ -376,6 +376,61 @@ export function createMealCatalogResponseDTO(overrides = {}) {
 }
 
 /**
+ * @typedef {Object} MealIntentRequestDTO
+ * @property {string|null} sourceText
+ * @property {string|null} locale
+ */
+
+export const MEAL_INTENT_REQUEST_DTO_FIELDS = Object.freeze([
+  'sourceText',
+  'locale',
+]);
+
+/**
+ * @param {Partial<MealIntentRequestDTO>} [overrides={}]
+ * @returns {MealIntentRequestDTO}
+ */
+export function createMealIntentRequestDTO(overrides = {}) {
+  return {
+    sourceText: null,
+    locale: null,
+    ...overrides,
+  };
+}
+
+/**
+ * @typedef {Object} MealIntentResponseDTO
+ * @property {string|null} decision
+ * @property {string|null} normalizedSourceText
+ * @property {string|null} clarificationQuestion
+ * @property {boolean|null} catalogFirst
+ * @property {number|null} catalogItemId
+ */
+
+export const MEAL_INTENT_RESPONSE_DTO_FIELDS = Object.freeze([
+  'decision',
+  'normalizedSourceText',
+  'clarificationQuestion',
+  'catalogFirst',
+  'catalogItemId',
+]);
+
+/**
+ * @param {Partial<MealIntentResponseDTO>} [overrides={}]
+ * @returns {MealIntentResponseDTO}
+ */
+export function createMealIntentResponseDTO(overrides = {}) {
+  return {
+    decision: null,
+    normalizedSourceText: null,
+    clarificationQuestion: null,
+    catalogFirst: null,
+    catalogItemId: null,
+    ...overrides,
+  };
+}
+
+/**
  * @typedef {Object} MealRecipeCollectionResponseDTO
  * @property {Array<RecipeDTO>} items
  * @property {PaginationMeta|null} pagination
@@ -483,6 +538,7 @@ export function createMealRecommendationRequestDTO(overrides = {}) {
  * @property {string|null} sourceText
  * @property {MealRecommendationFormDTO|null} form
  * @property {string|null} provider
+ * @property {string|null} reasonSummary
  * @property {Array<RecipeDTO>} items
  * @property {boolean|null} emptyState
  */
@@ -492,6 +548,7 @@ export const MEAL_RECOMMENDATION_RESPONSE_DTO_FIELDS = Object.freeze([
   'sourceText',
   'form',
   'provider',
+  'reasonSummary',
   'items',
   'emptyState',
 ]);
@@ -506,6 +563,7 @@ export function createMealRecommendationResponseDTO(overrides = {}) {
     sourceText: null,
     form: null,
     provider: null,
+    reasonSummary: null,
     items: [],
     emptyState: null,
     ...overrides,
@@ -870,6 +928,8 @@ export const CONTRACT_MODEL_NAMES = Object.freeze([
   'UserDTO',
   'MealCatalogItemDTO',
   'MealCatalogResponseDTO',
+  'MealIntentRequestDTO',
+  'MealIntentResponseDTO',
   'MealRecipeCollectionResponseDTO',
   'MealRecommendationFormDTO',
   'MealRecommendationRequestDTO',
@@ -901,6 +961,8 @@ export const CONTRACT_MODEL_FACTORIES = Object.freeze({
   UserDTO: createUserDTO,
   MealCatalogItemDTO: createMealCatalogItemDTO,
   MealCatalogResponseDTO: createMealCatalogResponseDTO,
+  MealIntentRequestDTO: createMealIntentRequestDTO,
+  MealIntentResponseDTO: createMealIntentResponseDTO,
   MealRecipeCollectionResponseDTO: createMealRecipeCollectionResponseDTO,
   MealRecommendationFormDTO: createMealRecommendationFormDTO,
   MealRecommendationRequestDTO: createMealRecommendationRequestDTO,

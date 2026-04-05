@@ -11,6 +11,7 @@ jest.mock('../../src/features/meal/api', () => ({
     fetchRecipeImage: jest.fn(),
     streamRecipeSteps: jest.fn(),
     updatePreference: jest.fn(),
+    getRecipe: jest.fn(),
   },
 }));
 
@@ -43,6 +44,7 @@ describe('MealResultsScreen', () => {
     mealAPI.fetchRecipeImage.mockReset();
     mealAPI.streamRecipeSteps.mockReset();
     mealAPI.updatePreference.mockReset();
+    mealAPI.getRecipe.mockReset();
     mealAPI.streamRecommendations.mockResolvedValue(undefined);
     mealAPI.recommendMeals.mockResolvedValue({
       data: {
@@ -63,6 +65,21 @@ describe('MealResultsScreen', () => {
       handlers.onComplete();
     });
     mealAPI.updatePreference.mockResolvedValue({ data: {} });
+    mealAPI.getRecipe.mockResolvedValue({
+      data: {
+        id: 1,
+        title: '番茄牛腩',
+        summary: '酸甜开胃',
+        estimatedCalories: 420,
+        ingredients: [{ name: '番茄' }, { name: '牛腩' }],
+        seasonings: [{ name: '盐' }],
+        steps: [{ index: 1, content: '小火慢炖 40 分钟。' }],
+        imageUrl: 'https://oss.example.com/detail.jpg',
+        imageStatus: 'GENERATED',
+        stepsStatus: 'GENERATED',
+        preference: 'LIKE',
+      },
+    });
   });
 
   afterEach(() => {
@@ -98,6 +115,7 @@ describe('MealResultsScreen', () => {
 
   it('streams recommendations and fetches pending images after completion', async () => {
     mealAPI.streamRecommendations.mockImplementation(async (_payload, handlers) => {
+      handlers.onSummary?.('这几道菜都偏川味家常，而且更适合下饭搭配。');
       handlers.onRecipe({
         id: 1,
         title: '鱼香肉丝',
@@ -150,6 +168,10 @@ describe('MealResultsScreen', () => {
       .findAllByType('Text')
       .find((node) => node.props.children === '鱼香肉丝');
     expect(titleNode).toBeTruthy();
+    const reasonNode = renderer.root
+      .findAllByType('Text')
+      .find((node) => node.props.children === '这几道菜都偏川味家常，而且更适合下饭搭配。');
+    expect(reasonNode).toBeTruthy();
   });
 
   it('stops streaming once the requested dish count has been reached', async () => {
@@ -232,6 +254,7 @@ describe('MealResultsScreen', () => {
       data: {
         requestId: 'fallback-2',
         sourceText: '川菜',
+        reasonSummary: '这组搭配更适合想吃川味但又不想太厚重的时候。',
         form: {
           dishCount: 1,
           totalCalories: 900,
@@ -292,6 +315,10 @@ describe('MealResultsScreen', () => {
       .findAllByType('Text')
       .find((node) => node.props.children === '宫保鸡丁');
     expect(titleNode).toBeTruthy();
+    const reasonNode = renderer.root
+      .findAllByType('Text')
+      .find((node) => node.props.children === '这组搭配更适合想吃川味但又不想太厚重的时候。');
+    expect(reasonNode).toBeTruthy();
   });
 
   it('falls back immediately when the stream completes without any recipe events', async () => {
@@ -356,6 +383,129 @@ describe('MealResultsScreen', () => {
       .findAllByType('Text')
       .find((node) => node.props.children === '鱼香肉丝');
     expect(titleNode).toBeTruthy();
+  });
+
+  it('falls back when the stream is interrupted before reaching the requested dish count', async () => {
+    mealAPI.streamRecommendations.mockImplementation(async (_payload, handlers) => {
+      handlers.onSummary?.('先给你一版川味搭配。');
+      handlers.onRecipe({
+        id: 41,
+        title: '鱼香肉丝',
+        summary: '酸甜下饭',
+        estimatedCalories: 430,
+        ingredients: [{ name: '里脊肉' }],
+        seasonings: [],
+        steps: [],
+        imageUrl: '',
+        imageStatus: 'OMITTED',
+        stepsStatus: 'OMITTED',
+        preference: null,
+      });
+      handlers.onRecipe({
+        id: 42,
+        title: '宫保鸡丁',
+        summary: '咸鲜微辣',
+        estimatedCalories: 460,
+        ingredients: [{ name: '鸡腿肉' }],
+        seasonings: [],
+        steps: [],
+        imageUrl: '',
+        imageStatus: 'OMITTED',
+        stepsStatus: 'OMITTED',
+        preference: null,
+      });
+      handlers.onError(new Error('Stream interrupted'));
+    });
+    mealAPI.recommendMeals.mockResolvedValue({
+      data: {
+        requestId: 'fallback-4',
+        sourceText: '川菜',
+        reasonSummary: '补齐后的三道菜更适合三人份搭配。',
+        form: {
+          dishCount: 3,
+          totalCalories: 900,
+          staple: 'RICE',
+        },
+        items: [
+          {
+            id: 41,
+            title: '鱼香肉丝',
+            summary: '酸甜下饭',
+            estimatedCalories: 430,
+            ingredients: [{ name: '里脊肉' }],
+            seasonings: [],
+            steps: [],
+            imageUrl: '',
+            imageStatus: 'OMITTED',
+            stepsStatus: 'OMITTED',
+            preference: null,
+          },
+          {
+            id: 42,
+            title: '宫保鸡丁',
+            summary: '咸鲜微辣',
+            estimatedCalories: 460,
+            ingredients: [{ name: '鸡腿肉' }],
+            seasonings: [],
+            steps: [],
+            imageUrl: '',
+            imageStatus: 'OMITTED',
+            stepsStatus: 'OMITTED',
+            preference: null,
+          },
+          {
+            id: 43,
+            title: '麻婆豆腐',
+            summary: '热辣开胃',
+            estimatedCalories: 320,
+            ingredients: [{ name: '豆腐' }],
+            seasonings: [],
+            steps: [],
+            imageUrl: '',
+            imageStatus: 'OMITTED',
+            stepsStatus: 'OMITTED',
+            preference: null,
+          },
+        ],
+      },
+    });
+
+    let renderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <MealResultsScreen
+          navigation={{ goBack: jest.fn() }}
+          route={{
+            params: {
+              streamingRequest: {
+                sourceText: '川菜',
+                sourceMode: 'TEXT',
+                dishCount: 3,
+                totalCalories: 900,
+                staple: 'RICE',
+                locale: 'zh-CN',
+              },
+            },
+          }}
+        />
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mealAPI.recommendMeals).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceText: '川菜', dishCount: 3 })
+    );
+
+    const titles = renderer.root
+      .findAllByType('Text')
+      .map((node) => node.props.children)
+      .filter((value) => typeof value === 'string');
+
+    expect(titles).toContain('鱼香肉丝');
+    expect(titles).toContain('宫保鸡丁');
+    expect(titles).toContain('麻婆豆腐');
+    expect(titles).toContain('补齐后的三道菜更适合三人份搭配。');
   });
 
   it('loads recipe steps lazily when the user asks to view them', async () => {
@@ -436,12 +586,17 @@ describe('MealResultsScreen', () => {
     });
 
     expect(mealAPI.updatePreference).toHaveBeenCalledWith(1, 'LIKE');
+    expect(mealAPI.getRecipe).toHaveBeenCalledWith(1);
 
     const likedBadge = renderer.root
       .findAllByType('Text')
       .find((node) => node.props.children === '已喜欢');
+    const refreshedStep = renderer.root
+      .findAllByType('Text')
+      .find((node) => node.props.children === '1. 小火慢炖 40 分钟。');
 
     expect(likedBadge).toBeTruthy();
+    expect(refreshedStep).toBeTruthy();
   });
 
   it('optimistically marks a recipe as disliked', async () => {
@@ -467,5 +622,76 @@ describe('MealResultsScreen', () => {
       .find((node) => node.props.children === '已讨厌');
 
     expect(dislikedBadge).toBeTruthy();
+  });
+
+  it('shows the selected staple tag instead of the provider tag', async () => {
+    let renderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <MealResultsScreen
+          navigation={{ goBack: jest.fn() }}
+          route={{
+            params: {
+              recommendation: {
+                ...recommendation,
+                form: {
+                  dishCount: 1,
+                  totalCalories: 800,
+                  staple: 'RICE',
+                },
+              },
+            },
+          }}
+        />
+      );
+    });
+
+    const stapleTag = renderer.root
+      .findAllByType('Text')
+      .find((node) => node.props.children === '米饭');
+    const providerTag = renderer.root
+      .findAllByType('Text')
+      .find((node) => node.props.children === 'mock');
+
+    expect(stapleTag).toBeTruthy();
+    expect(providerTag).toBeUndefined();
+  });
+
+  it('warns when dish calories plus staple calories exceed the requested target', async () => {
+    let renderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <MealResultsScreen
+          navigation={{ goBack: jest.fn() }}
+          route={{
+            params: {
+              recommendation: {
+                ...recommendation,
+                form: {
+                  dishCount: 1,
+                  totalCalories: 700,
+                  staple: 'RICE',
+                },
+                items: [
+                  {
+                    ...recommendation.items[0],
+                    estimatedCalories: 520,
+                  },
+                ],
+              },
+            },
+          }}
+        />
+      );
+    });
+
+    const overageText = renderer.root
+      .findAllByType('Text')
+      .find((node) =>
+        typeof node.props.children === 'string'
+          && node.props.children.includes('搭配主食后总计约 800 千卡')
+      );
+
+    expect(overageText).toBeTruthy();
   });
 });

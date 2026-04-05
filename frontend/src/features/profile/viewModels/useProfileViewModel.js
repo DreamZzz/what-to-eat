@@ -5,6 +5,24 @@ import { mealAPI } from '../../meal/api';
 import { DEFAULT_PROFILE_PAGE_SIZE } from '../../meal/constants';
 import { normalizeFavoriteResponse } from '../../meal/utils';
 
+const fallbackNormalizeFavoriteResponse = (payload = {}) => ({
+  items: Array.isArray(payload.items) ? payload.items : [],
+  pagination: payload.pagination || {
+    page: 0,
+    size: DEFAULT_PROFILE_PAGE_SIZE,
+    totalItems: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrevious: false,
+  },
+  retrieval: payload.retrieval || {
+    scene: 'favorites',
+    keyword: null,
+    sortStrategy: 'latest',
+    provider: 'database',
+  },
+});
+
 /**
  * ViewModel for ProfileScreen.
  * Owns: favorites loading, user display values, logout action.
@@ -21,7 +39,10 @@ export const useProfileViewModel = () => {
       setLoadingFavorites(true);
       setError('');
       const response = await mealAPI.getFavorites(0, DEFAULT_PROFILE_PAGE_SIZE);
-      const normalized = normalizeFavoriteResponse(response.data || {});
+      const normalizer = typeof normalizeFavoriteResponse === 'function'
+        ? normalizeFavoriteResponse
+        : fallbackNormalizeFavoriteResponse;
+      const normalized = normalizer(response?.data || {});
       setFavorites(normalized.items);
     } catch (err) {
       console.error('Failed to load favorites:', err);

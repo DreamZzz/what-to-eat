@@ -42,7 +42,25 @@ public class MockMealGenerationProvider implements MealGenerationProvider {
             recipes.add(recipe);
         }
 
-        return new MealGenerationResult(providerName(), recipes, recipes.isEmpty());
+        return new MealGenerationResult(
+                providerName(),
+                recipes,
+                recipes.isEmpty(),
+                String.format(Locale.ROOT, "根据你想吃的“%s”，先给你凑了一组 %d 道更贴近日常下厨节奏的搭配。",
+                        request.getSourceText(),
+                        count)
+        );
+    }
+
+    @Override
+    public void generateStream(
+            MealRecommendationRequestDTO request,
+            Consumer<String> onSummary,
+            Consumer<RecipeDTO> onRecipe
+    ) {
+        MealGenerationResult result = generate(request);
+        onSummary.accept(result.getReasonSummary());
+        result.getRecipes().forEach(onRecipe);
     }
 
     private String inferFocus(String sourceText) {

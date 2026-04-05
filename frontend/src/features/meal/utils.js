@@ -35,6 +35,7 @@ export const normalizeRecommendationResponse = (response = {}) => ({
   sourceText: response.sourceText || '',
   form: response.form || null,
   provider: response.provider || null,
+  reasonSummary: response.reasonSummary || '',
   items: normalizeRecipeList(response.items),
   emptyState: typeof response.emptyState === 'object' && response.emptyState !== null
     ? response.emptyState

@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -36,6 +37,8 @@ public class MealCatalogService {
     private static final String TYPE_FLAVOR = "FLAVOR";
     private static final String TYPE_FEATURE = "FEATURE";
     private static final String TYPE_INGREDIENT = "INGREDIENT";
+    private static final java.util.regex.Pattern TITLE_NORMALIZATION_PATTERN =
+            java.util.regex.Pattern.compile("[\\s\\p{Punct}\\p{IsPunctuation}。！？、，；：…·（）()【】\\[\\]\"'“”‘’]+");
 
     private final MealCatalogDatasetRepository datasetRepository;
     private final MealCatalogItemRepository itemRepository;
@@ -176,6 +179,109 @@ public class MealCatalogService {
         return response;
     }
 
+    @Transactional(readOnly = true)
+    public Optional<String> resolveCatalogTitle(String candidateTitle) {
+        if (candidateTitle == null || candidateTitle.isBlank()) {
+            return Optional.empty();
+        }
+
+        List<MealCatalogItem> activeItems = getActiveCatalogItems();
+        if (activeItems.isEmpty()) {
+            return Optional.empty();
+        }
+
+        String normalizedCandidate = normalizeDishTitle(candidateTitle);
+        if (normalizedCandidate.isBlank()) {
+            return Optional.empty();
+        }
+
+        Map<String, String> exactTitleMap = buildExactTitleMap(activeItems);
+        String exactMatch = exactTitleMap.get(normalizedCandidate);
+        if (exactMatch != null) {
+            return Optional.of(exactMatch);
+        }
+
+        if (normalizedCandidate.length() < 2) {
+            return Optional.empty();
+        }
+
+        List<String> containsMatches = activeItems.stream()
+                .map(MealCatalogItem::getName)
+                .filter(Objects::nonNull)
+                .filter(name -> normalizeDishTitle(name).contains(normalizedCandidate))
+                .distinct()
+                .limit(2)
+                .toList();
+        if (containsMatches.size() == 1) {
+            return Optional.of(containsMatches.get(0));
+        }
+
+        return Optional.empty();
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<MealCatalogItem> findItemByTitle(String title) {
+        if (title == null || title.isBlank()) {
+            return Optional.empty();
+        }
+        String normalizedTitle = normalizeDishTitle(title);
+        return getActiveCatalogItems().stream()
+                .filter(item -> normalizedTitle.equals(normalizeDishTitle(item.getName())))
+                .findFirst();
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> resolveRecommendedTitles(
+            String sourceText,
+            List<String> candidateTitles,
+            int targetCount,
+            List<String> requiredTitles
+    ) {
+        if (targetCount <= 0) {
+            return List.of();
+        }
+
+        List<MealCatalogItem> activeItems = getActiveCatalogItems();
+        if (activeItems.isEmpty()) {
+            return candidateTitles == null ? List.of() : candidateTitles.stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(title -> !title.isBlank())
+                    .distinct()
+                    .limit(targetCount)
+                    .toList();
+        }
+
+        LinkedHashSet<String> resolved = new LinkedHashSet<>();
+        List<String> required = requiredTitles == null ? List.of() : requiredTitles;
+        for (String requiredTitle : required) {
+            resolveCatalogTitle(requiredTitle).ifPresent(resolved::add);
+        }
+        if (candidateTitles != null) {
+            for (String candidateTitle : candidateTitles) {
+                resolveCatalogTitle(candidateTitle).ifPresent(resolved::add);
+                if (resolved.size() >= targetCount) {
+                    return new ArrayList<>(resolved);
+                }
+            }
+        }
+
+        if (resolved.size() < targetCount) {
+            for (MealCatalogItem item : rankItemsByQuery(sourceText, activeItems)) {
+                String title = item.getName();
+                if (title == null || title.isBlank()) {
+                    continue;
+                }
+                resolved.add(title);
+                if (resolved.size() >= targetCount) {
+                    break;
+                }
+            }
+        }
+
+        return new ArrayList<>(resolved).stream().limit(targetCount).toList();
+    }
+
     private String buildLegacyMetadataChecksum(MealCatalogDataset dataset) {
         try {
             String payload = String.join(
@@ -285,5 +391,90 @@ public class MealCatalogService {
 
     private String normalizeTagKey(String label) {
         return label.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", "-");
+    }
+
+    private List<MealCatalogItem> getActiveCatalogItems() {
+        MealCatalogDataset dataset = datasetRepository.findFirstByActiveTrueOrderByImportedAtDesc()
+                .orElseGet(this::ensureCatalogSeeded);
+        if (itemRepository.countByDatasetId(dataset.getId()) == 0) {
+            dataset = ensureCatalogSeeded();
+        }
+        return itemRepository.findAllByDatasetVersionAndEnabledTrueOrderBySourceIndexAsc(dataset.getVersion());
+    }
+
+    private Map<String, String> buildExactTitleMap(List<MealCatalogItem> items) {
+        Map<String, String> titleMap = new LinkedHashMap<>();
+        for (MealCatalogItem item : items) {
+            if (item.getName() == null || item.getName().isBlank()) {
+                continue;
+            }
+            titleMap.putIfAbsent(normalizeDishTitle(item.getName()), item.getName());
+        }
+        return titleMap;
+    }
+
+    private List<MealCatalogItem> rankItemsByQuery(String sourceText, List<MealCatalogItem> items) {
+        String normalizedQuery = normalizeDishTitle(sourceText);
+        if (normalizedQuery.isBlank()) {
+            return items.stream().limit(20).toList();
+        }
+
+        return items.stream()
+                .map(item -> Map.entry(item, scoreItemForQuery(item, normalizedQuery)))
+                .filter(entry -> entry.getValue() > 0)
+                .sorted(Comparator
+                        .<Map.Entry<MealCatalogItem, Integer>>comparingInt(Map.Entry::getValue)
+                        .reversed()
+                        .thenComparing(entry -> entry.getKey().getSourceIndex()))
+                .map(Map.Entry::getKey)
+                .toList();
+    }
+
+    private int scoreItemForQuery(MealCatalogItem item, String normalizedQuery) {
+        if (item.getName() == null || item.getName().isBlank()) {
+            return 0;
+        }
+
+        String normalizedName = normalizeDishTitle(item.getName());
+        int score = 0;
+        if (normalizedName.equals(normalizedQuery)) {
+            score += 120;
+        } else if (normalizedName.contains(normalizedQuery)) {
+            score += 90;
+        }
+
+        if (containsNormalized(item.getCategory(), normalizedQuery)) {
+            score += 25;
+        }
+        if (containsNormalized(item.getSubcategory(), normalizedQuery)) {
+            score += 20;
+        }
+        if (containsNormalized(item.getCookingMethod(), normalizedQuery)) {
+            score += 15;
+        }
+        if (containsNormalized(item.getRawFlavorText(), normalizedQuery)) {
+            score += 20;
+        }
+        for (MealCatalogItemTag itemTag : item.getItemTags()) {
+            MealCatalogTag tag = itemTag.getTag();
+            if (tag != null && containsNormalized(tag.getTagLabel(), normalizedQuery)) {
+                score += TYPE_INGREDIENT.equals(tag.getTagType()) ? 16 : 18;
+            }
+        }
+        return score;
+    }
+
+    private boolean containsNormalized(String text, String normalizedQuery) {
+        if (text == null || text.isBlank() || normalizedQuery == null || normalizedQuery.isBlank()) {
+            return false;
+        }
+        return normalizeDishTitle(text).contains(normalizedQuery);
+    }
+
+    private String normalizeDishTitle(String value) {
+        if (value == null) {
+            return "";
+        }
+        return TITLE_NORMALIZATION_PATTERN.matcher(value.trim().toLowerCase(Locale.ROOT)).replaceAll("");
     }
 }

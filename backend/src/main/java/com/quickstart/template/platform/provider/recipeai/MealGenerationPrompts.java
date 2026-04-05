@@ -126,6 +126,23 @@ final class MealGenerationPrompts {
                 """;
     }
 
+    static String reasonSummarySystemPrompt() {
+        return """
+                你是一个中文点餐推荐助手。
+                你的任务是根据用户输入的方向、主食偏好、热量目标和已选菜名，用 1 到 2 句话总结“为什么推荐这几道菜”。
+                请只返回 JSON，不要输出 markdown 或额外解释。
+                JSON 结构必须是：
+                {
+                  "reasonSummary": "一句到两句的中文解释"
+                }
+                要求：
+                1. 语言自然，像产品提示文案，不要像模型自我介绍。
+                2. 需要点出至少一个和用户输入直接相关的理由。
+                3. 如果有多道菜，强调搭配感、口味层次或荤素平衡。
+                4. 不要编造用户没输入过的健康承诺。
+                """;
+    }
+
     /**
      * User turn for single-call generation.
      */
@@ -157,6 +174,27 @@ final class MealGenerationPrompts {
             }
         }
         return sb.toString();
+    }
+
+    static String reasonSummaryUserPrompt(
+            MealRecommendationRequestDTO request,
+            List<String> recipeTitles
+    ) {
+        String locale = request.getLocale() == null ? "zh-CN" : request.getLocale();
+        String staple = stapleLabel(request.getStaple());
+        String titles = recipeTitles == null || recipeTitles.isEmpty()
+                ? "暂无菜名"
+                : String.join("、", recipeTitles);
+        return String.format(
+                Locale.ROOT,
+                "用户输入方向：%s。推荐菜名：%s。菜数：%d。总热量目标：%s 千卡。主食偏好：%s。语言：%s。请输出推荐这几道菜的简短理由。",
+                request.getSourceText(),
+                titles,
+                request.getDishCount() == null ? 1 : request.getDishCount(),
+                request.getTotalCalories() == null ? "未设置" : request.getTotalCalories(),
+                staple,
+                locale
+        );
     }
 
     /**

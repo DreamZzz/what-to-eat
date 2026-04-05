@@ -31,12 +31,18 @@ const MealResultsScreen = ({ navigation, route }) => {
           {vm.displayMeta.calories ? (
             <Text style={styles.metaText}>{vm.displayMeta.calories} kcal</Text>
           ) : null}
-          {!vm.streaming ? (
-            <Text style={styles.metaText}>{vm.displayMeta.provider || 'AI'}</Text>
+          {vm.stapleTag ? (
+            <Text style={styles.metaText}>{vm.stapleTag}</Text>
           ) : null}
         </View>
         {vm.stapleHint ? (
           <Text style={styles.stapleHint}>{vm.stapleHint}</Text>
+        ) : null}
+        {vm.reasonSummary ? (
+          <View style={styles.reasonBlock}>
+            <Text style={styles.reasonLabel}>为什么推荐这几道</Text>
+            <Text style={styles.reasonText}>{vm.reasonSummary}</Text>
+          </View>
         ) : null}
         {vm.calorieOverageHint ? (
           <Text style={styles.calorieOverageHint}>{vm.calorieOverageHint}</Text>
@@ -174,6 +180,23 @@ const styles = StyleSheet.create({
   },
   stapleHint: {
     color: '#7A5C4E',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  reasonBlock: {
+    borderRadius: 14,
+    backgroundColor: '#FFF5EC',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  reasonLabel: {
+    color: '#A46643',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  reasonText: {
+    color: '#6A4D3F',
     fontSize: 13,
     lineHeight: 20,
   },

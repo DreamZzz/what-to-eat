@@ -21,6 +21,11 @@ export const mealAPI = {
   getCatalog: () =>
     apiClient.get('/meals/catalog'),
 
+  analyzeIntent: (payload) =>
+    apiClient.post('/meals/intent', payload, {
+      timeout: 20000,
+    }),
+
   recommendMeals: (payload) =>
     apiClient.post('/meals/recommendations', payload, {
       timeout: 60000,
@@ -42,7 +47,7 @@ export const mealAPI = {
    * Streaming recommendation via SSE (XHR-based for React Native compatibility).
    * Calls onRecipe for each recipe as it arrives, onComplete when done, onError on failure.
    */
-  streamRecommendations: async (payload, { onRecipe, onComplete, onError, shouldStop }) => {
+  streamRecommendations: async (payload, { onSummary, onRecipe, onComplete, onError, shouldStop }) => {
     let token;
     try {
       token = await AsyncStorage.getItem('auth_token');
@@ -66,6 +71,24 @@ export const mealAPI = {
       let receivedData = false;
       let completed = false;
       let cancelledByClient = false;
+      let resolved = false;
+      let sawDoneEvent = false;
+
+      const finish = () => {
+        if (completed) {
+          return;
+        }
+        completed = true;
+        onComplete();
+      };
+
+      const resolveOnce = () => {
+        if (resolved) {
+          return;
+        }
+        resolved = true;
+        resolve();
+      };
 
       const processBuffer = () => {
         const lines = buffer.split('\n');
@@ -81,14 +104,22 @@ export const mealAPI = {
                 const parsed = JSON.parse(data);
                 if (lastEventName === 'error') {
                   onError(new Error(parsed.message || 'Server error'));
+                  resolveOnce();
+                  return;
+                } else if (lastEventName === 'summary') {
+                  onSummary?.(parsed.reasonSummary || '');
+                } else if (lastEventName === 'done') {
+                  sawDoneEvent = true;
+                  finish();
+                  resolveOnce();
+                  return;
                 } else {
                   onRecipe(parsed);
                   if (shouldStop?.(parsed) === true) {
                     cancelledByClient = true;
-                    completed = true;
+                    finish();
                     xhr.abort();
-                    onComplete();
-                    resolve();
+                    resolveOnce();
                     return;
                   }
                 }
@@ -113,49 +144,54 @@ export const mealAPI = {
         if (xhr.status === 401) {
           handleUnauthorized().catch(() => {});
           onError(Object.assign(new Error('登录已过期，请重新登录'), { status: 401 }));
-          resolve();
+          resolveOnce();
           return;
         }
-        completed = true;
         if (buffer.trim()) {
           buffer += '\n';
           processBuffer();
         }
-        onComplete();
-        resolve();
+        finish();
+        resolveOnce();
       };
 
       xhr.onerror = () => {
         if (cancelledByClient) {
-          resolve();
+          resolveOnce();
           return;
         }
         if (completed) {
-          resolve();
+          resolveOnce();
           return;
         }
-        // React Native sometimes fires onerror when the server closes a streaming connection
-        // normally. If data was already received, treat this as a successful completion.
-        if (receivedData) {
+        // A recommendation stream is only considered complete after an explicit `done` event.
+        // If the connection drops mid-stream, surface it so the view model can fall back to
+        // the sync endpoint and fill the missing dishes.
+        if (receivedData && sawDoneEvent) {
           if (buffer.trim()) {
             buffer += '\n';
             processBuffer();
           }
-          onComplete();
+          finish();
         } else {
-          onError(Object.assign(new Error('Network error'), { response: { status: 0 } }));
+          onError(
+            Object.assign(
+              new Error(receivedData ? 'Stream interrupted' : 'Network error'),
+              { response: { status: 0 } }
+            )
+          );
         }
-        resolve();
+        resolveOnce();
       };
 
       xhr.ontimeout = () => {
         onError(new Error('Request timed out'));
-        resolve();
+        resolveOnce();
       };
 
       xhr.onabort = () => {
         if (cancelledByClient) {
-          resolve();
+          resolveOnce();
         }
       };
 
@@ -191,6 +227,23 @@ export const mealAPI = {
       let processedLength = 0;
       let receivedData = false;
       let completed = false;
+      let resolved = false;
+
+      const finish = () => {
+        if (completed) {
+          return;
+        }
+        completed = true;
+        onComplete();
+      };
+
+      const resolveOnce = () => {
+        if (resolved) {
+          return;
+        }
+        resolved = true;
+        resolve();
+      };
 
       const processBuffer = () => {
         const lines = buffer.split('\n');
@@ -206,6 +259,12 @@ export const mealAPI = {
                 const parsed = JSON.parse(data);
                 if (lastEventName === 'error') {
                   onError(new Error(parsed.message || 'Server error'));
+                  resolveOnce();
+                  return;
+                } else if (lastEventName === 'done') {
+                  finish();
+                  resolveOnce();
+                  return;
                 } else if (lastEventName === 'token') {
                   onToken?.(parsed);
                 } else if (lastEventName === 'step') {
@@ -232,21 +291,20 @@ export const mealAPI = {
         if (xhr.status === 401) {
           handleUnauthorized().catch(() => {});
           onError(Object.assign(new Error('登录已过期，请重新登录'), { status: 401 }));
-          resolve();
+          resolveOnce();
           return;
         }
-        completed = true;
         if (buffer.trim()) {
           buffer += '\n';
           processBuffer();
         }
-        onComplete();
-        resolve();
+        finish();
+        resolveOnce();
       };
 
       xhr.onerror = () => {
         if (completed) {
-          resolve();
+          resolveOnce();
           return;
         }
         if (receivedData) {
@@ -254,16 +312,16 @@ export const mealAPI = {
             buffer += '\n';
             processBuffer();
           }
-          onComplete();
+          finish();
         } else {
           onError(new Error('Network error'));
         }
-        resolve();
+        resolveOnce();
       };
 
       xhr.ontimeout = () => {
         onError(new Error('步骤加载超时，请重试'));
-        resolve();
+        resolveOnce();
       };
 
       xhr.timeout = 90000;

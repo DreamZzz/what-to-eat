@@ -382,6 +382,48 @@
       ]
     },
     {
+      "className": "MealIntentRequestDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/MealIntentRequestDTO.java",
+      "sourceHash": "f0117513ff8ef0963f3269660b53793b57808e95d5acef7531f0d358dfc12696",
+      "fields": [
+        {
+          "name": "sourceText",
+          "javaType": "String"
+        },
+        {
+          "name": "locale",
+          "javaType": "String"
+        }
+      ]
+    },
+    {
+      "className": "MealIntentResponseDTO",
+      "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/MealIntentResponseDTO.java",
+      "sourceHash": "3897869ca523bbd0e635aa53b62ba52b051d598c24841b19e21d28dcfa10f12d",
+      "fields": [
+        {
+          "name": "decision",
+          "javaType": "String"
+        },
+        {
+          "name": "normalizedSourceText",
+          "javaType": "String"
+        },
+        {
+          "name": "clarificationQuestion",
+          "javaType": "String"
+        },
+        {
+          "name": "catalogFirst",
+          "javaType": "Boolean"
+        },
+        {
+          "name": "catalogItemId",
+          "javaType": "Long"
+        }
+      ]
+    },
+    {
       "className": "MealRecipeCollectionResponseDTO",
       "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/MealRecipeCollectionResponseDTO.java",
       "sourceHash": "043d645f7e188421a54b551551cb60d6ec45897577fb6df999e0d8ccbdccbd1e",
@@ -473,7 +515,7 @@
     {
       "className": "MealRecommendationResponseDTO",
       "sourcePath": "backend/src/main/java/com/quickstart/template/contexts/meal/api/dto/MealRecommendationResponseDTO.java",
-      "sourceHash": "a365dd1b6a7373ed9ede61dca109ab15110a825d948ded5f56c1c3c1d5151682",
+      "sourceHash": "83757d1b3a2df0b3be9500ff06589ce18a78b6389f4f8bb288d7a357c9c6ab8e",
       "fields": [
         {
           "name": "requestId",
@@ -489,6 +531,10 @@
         },
         {
           "name": "provider",
+          "javaType": "String"
+        },
+        {
+          "name": "reasonSummary",
           "javaType": "String"
         },
         {

@@ -81,6 +81,11 @@ const RecipeCard = ({
   const isPendingSteps =
     recipe.stepsStatus === 'PENDING' && localSteps.length === 0 && !stepsLoading && !stepsError;
 
+  useEffect(() => {
+    setLocalSteps(recipe.steps || []);
+    setStepsError(false);
+  }, [recipe.steps]);
+
   const handleLoadSteps = async () => {
     if (!recipe.id || stepsLoading) return;
     setStepsLoading(true);
